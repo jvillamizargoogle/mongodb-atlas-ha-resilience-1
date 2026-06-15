@@ -16,27 +16,37 @@ interface Props {
   onScenarioChange: (id: string | null) => void;
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   isRunning: boolean;
+  defaultOutageProvider?: string;
+  defaultOutageRegion?: string;
 }
 
 type ConfirmAction = 'failover' | 'outage_start' | 'outage_end' | 'reset';
-
-interface ConfirmState {
-  action: ConfirmAction | null;
-}
 
 export default function ScenarioLauncher({
   config,
   onScenarioChange,
   onToast,
   isRunning,
+  defaultOutageProvider,
+  defaultOutageRegion,
 }: Props) {
   const [loading, setLoading] = useState(false);
-  const [confirm, setConfirm] = useState<ConfirmState>({ action: null });
-  const [outageProvider, setOutageProvider] = useState('AWS');
-  const [outageRegion, setOutageRegion] = useState('US_EAST_1');
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [outageProvider, setOutageProvider] = useState(defaultOutageProvider ?? 'AWS');
+  const [outageRegion, setOutageRegion] = useState(defaultOutageRegion ?? 'US_EAST_1');
 
   const atlasEnabled = config?.atlasControlPlaneEnabled ?? false;
   const destructiveEnabled = config?.destructiveActionsEnabled ?? false;
+
+  // Sync defaults when Atlas data arrives (only if user hasn't typed)
+  const [providerTouched, setProviderTouched] = useState(false);
+  const [regionTouched, setRegionTouched] = useState(false);
+  if (defaultOutageProvider && !providerTouched && outageProvider !== defaultOutageProvider) {
+    setOutageProvider(defaultOutageProvider);
+  }
+  if (defaultOutageRegion && !regionTouched && outageRegion !== defaultOutageRegion) {
+    setOutageRegion(defaultOutageRegion);
+  }
 
   async function startWorkload(type: 'write' | 'read' | 'update' | 'mixed' | 'bulk') {
     if (loading || isRunning) return;
@@ -77,7 +87,7 @@ export default function ScenarioLauncher({
 
   async function triggerFailover() {
     setLoading(true);
-    setConfirm({ action: null });
+    setConfirmAction(null);
     try {
       const res = await api.triggerFailover(true);
       if (res.success) onToast('Failover triggered — election in progress', 'success');
@@ -89,7 +99,7 @@ export default function ScenarioLauncher({
 
   async function startOutage() {
     setLoading(true);
-    setConfirm({ action: null });
+    setConfirmAction(null);
     try {
       const res = await api.startOutage(true, outageProvider, outageRegion);
       if (res.success)
@@ -102,7 +112,7 @@ export default function ScenarioLauncher({
 
   async function endOutage() {
     setLoading(true);
-    setConfirm({ action: null });
+    setConfirmAction(null);
     try {
       const res = await api.endOutage();
       if (res.success) onToast('Outage simulation ended', 'success');
@@ -114,7 +124,7 @@ export default function ScenarioLauncher({
 
   async function resetDemo() {
     setLoading(true);
-    setConfirm({ action: null });
+    setConfirmAction(null);
     try {
       const res = await api.resetDemo();
       if (res.success)
@@ -125,89 +135,64 @@ export default function ScenarioLauncher({
     }
   }
 
-  const BASE =
-    'w-full flex items-center gap-2 px-3 py-2 rounded text-xs font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed';
-  const btnGreen = `${BASE} bg-mdb-green/10 hover:bg-mdb-green/20 text-mdb-green border border-mdb-green/30 hover:border-mdb-green/60`;
-  const btnRed = `${BASE} bg-red-950/60 hover:bg-red-900/60 text-red-400 border border-red-900/60 hover:border-red-700`;
-  const btnOrange = `${BASE} bg-orange-950/60 hover:bg-orange-900/60 text-orange-400 border border-orange-900/60 hover:border-orange-700`;
-  const btnGray = `${BASE} bg-gray-800/80 hover:bg-gray-700/80 text-gray-300 border border-gray-700/60 hover:border-gray-600`;
+  // Spring physics base — custom cubic-bezier for all interactive elements
+  const SPRING = 'transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.97]';
+
+  const BASE = `w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100 ${SPRING}`;
+  const btnGreen = `${BASE} bg-mdb-green/[0.08] hover:bg-mdb-green/[0.15] text-mdb-green border border-mdb-green/20 hover:border-mdb-green/50 hover:-translate-y-px`;
+  const btnRed   = `${BASE} bg-red-500/[0.08] hover:bg-red-500/[0.14] text-red-400 border border-red-500/20 hover:border-red-500/50 hover:-translate-y-px`;
+  const btnOrange = `${BASE} bg-orange-500/[0.08] hover:bg-orange-500/[0.14] text-orange-400 border border-orange-500/20 hover:border-orange-500/50 hover:-translate-y-px`;
+  const btnGray  = `${BASE} bg-white/[0.04] hover:bg-white/[0.07] text-gray-400 border border-white/[0.06] hover:border-white/[0.12] hover:-translate-y-px`;
 
   const CONFIRM_COPY: Record<ConfirmAction, string> = {
-    failover:
-      'This will trigger a primary failover on your Atlas cluster. The cluster will briefly be unavailable during the election.',
-    outage_start: `This will start an outage simulation for ${outageProvider} / ${outageRegion}. Nodes in that region will be taken offline.`,
-    outage_end: 'This will end the active outage simulation and restore all affected nodes.',
-    reset:
-      'This will delete ALL documents from the resilience_events collection. This action cannot be undone.',
+    failover: 'This will trigger a primary failover on your Atlas cluster. The cluster will be briefly unavailable during the replica set election.',
+    outage_start: `Start an outage simulation for ${outageProvider} / ${outageRegion}. Nodes in that region will be taken offline.`,
+    outage_end: 'End the active outage simulation and restore all affected nodes.',
+    reset: 'Delete ALL documents from the resilience_events collection. This cannot be undone.',
   };
 
   return (
     <div className="p-3 space-y-3">
-      <span className="text-xs font-semibold font-display text-gray-400 uppercase tracking-wider">
+      <span className="text-[10px] font-semibold font-display text-gray-500 uppercase tracking-[0.15em]">
         Scenarios
       </span>
 
       {/* Workloads */}
-      <div className="space-y-1.5">
-        <p className="text-xs text-gray-600 uppercase tracking-widest font-display">
+      <div className="space-y-1">
+        <p className="text-[9px] text-gray-600 uppercase tracking-[0.18em] font-display mb-1.5">
           Workloads
         </p>
-        <button
-          className={btnGreen}
-          disabled={isRunning || loading}
-          onClick={() => startWorkload('write')}
-        >
+        <button className={btnGreen} disabled={isRunning || loading} onClick={() => startWorkload('write')}>
           <Play className="w-3 h-3 shrink-0" /> Write Workload
         </button>
-        <button
-          className={btnGreen}
-          disabled={isRunning || loading}
-          onClick={() => startWorkload('read')}
-        >
+        <button className={btnGreen} disabled={isRunning || loading} onClick={() => startWorkload('read')}>
           <Play className="w-3 h-3 shrink-0" /> Read Workload
         </button>
-        <button
-          className={btnGreen}
-          disabled={isRunning || loading}
-          onClick={() => startWorkload('mixed')}
-        >
+        <button className={btnGreen} disabled={isRunning || loading} onClick={() => startWorkload('mixed')}>
           <Play className="w-3 h-3 shrink-0" /> Mixed Read/Write
         </button>
-        <button
-          className={btnGreen}
-          disabled={isRunning || loading}
-          onClick={() => startWorkload('update')}
-        >
+        <button className={btnGreen} disabled={isRunning || loading} onClick={() => startWorkload('update')}>
           <Play className="w-3 h-3 shrink-0" /> Update Workload
         </button>
-        <button
-          className={btnGreen}
-          disabled={isRunning || loading}
-          onClick={() => startWorkload('bulk')}
-        >
+        <button className={btnGreen} disabled={isRunning || loading} onClick={() => startWorkload('bulk')}>
           <Play className="w-3 h-3 shrink-0" /> Bulk Write
         </button>
-        <button
-          className={btnGray}
-          disabled={!isRunning || loading}
-          onClick={stopWorkload}
-        >
+        <button className={btnGray} disabled={!isRunning || loading} onClick={stopWorkload}>
           <Square className="w-3 h-3 shrink-0" /> Stop Workload
         </button>
       </div>
 
       {/* Atlas Control Plane */}
-      <div className="space-y-1.5 border-t border-gray-800 pt-2">
-        <p className="text-xs text-gray-600 uppercase tracking-widest font-display">
+      <div className="space-y-1 border-t border-white/[0.05] pt-2.5">
+        <p className="text-[9px] text-gray-600 uppercase tracking-[0.18em] font-display mb-1.5">
           Atlas Control Plane
         </p>
 
         {!atlasEnabled && (
-          <div className="text-xs text-yellow-700 bg-yellow-950/50 border border-yellow-900/40 rounded p-2 flex items-start gap-1.5">
-            <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5 text-yellow-600" />
+          <div className="text-[10px] text-yellow-600/80 bg-yellow-500/[0.06] border border-yellow-500/[0.15] rounded-lg p-2 flex items-start gap-1.5">
+            <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
             <span>
-              Atlas control plane disabled.{' '}
-              <span className="font-mono">ENABLE_ATLAS_CONTROL_PLANE=true</span> to enable.
+              Set <span className="font-mono text-yellow-500/80">ENABLE_ATLAS_CONTROL_PLANE=true</span> to enable.
             </span>
           </div>
         )}
@@ -215,102 +200,94 @@ export default function ScenarioLauncher({
         <button
           className={btnOrange}
           disabled={!atlasEnabled || !destructiveEnabled || loading}
-          onClick={() => setConfirm({ action: 'failover' })}
-          title={
-            !atlasEnabled
-              ? 'Atlas control plane disabled'
-              : !destructiveEnabled
-              ? 'Set ENABLE_DESTRUCTIVE_ACTIONS=true'
-              : 'Trigger primary failover'
-          }
+          onClick={() => setConfirmAction('failover')}
+          title={!atlasEnabled ? 'Atlas control plane disabled' : !destructiveEnabled ? 'Set ENABLE_DESTRUCTIVE_ACTIONS=true' : 'Trigger primary failover'}
         >
           <Zap className="w-3 h-3 shrink-0" /> Trigger Failover
         </button>
 
         {!destructiveEnabled && atlasEnabled && (
-          <p className="text-xs text-gray-600">
-            Failover &amp; outage require{' '}
-            <span className="font-mono">ENABLE_DESTRUCTIVE_ACTIONS=true</span>
+          <p className="text-[9px] text-gray-600 px-1">
+            Requires <span className="font-mono">ENABLE_DESTRUCTIVE_ACTIONS=true</span>
           </p>
         )}
 
         {/* Outage region inputs */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 pt-0.5">
           <input
-            className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-mdb-green/50 font-mono"
+            className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-[10px] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-mdb-green/40 focus:bg-white/[0.06] font-mono transition-colors duration-150"
             placeholder="Provider"
             value={outageProvider}
-            onChange={(e) => setOutageProvider(e.target.value)}
+            onChange={(e) => { setProviderTouched(true); setOutageProvider(e.target.value); }}
           />
           <input
-            className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-mdb-green/50 font-mono"
+            className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-[10px] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-mdb-green/40 focus:bg-white/[0.06] font-mono transition-colors duration-150"
             placeholder="Region"
             value={outageRegion}
-            onChange={(e) => setOutageRegion(e.target.value)}
+            onChange={(e) => { setRegionTouched(true); setOutageRegion(e.target.value); }}
           />
         </div>
 
         <button
           className={btnRed}
           disabled={!atlasEnabled || !destructiveEnabled || loading}
-          onClick={() => setConfirm({ action: 'outage_start' })}
+          onClick={() => setConfirmAction('outage_start')}
         >
           <ShieldOff className="w-3 h-3 shrink-0" /> Start Outage Simulation
         </button>
         <button
           className={btnGray}
           disabled={!atlasEnabled || loading}
-          onClick={() => setConfirm({ action: 'outage_end' })}
+          onClick={() => setConfirmAction('outage_end')}
         >
           <Globe className="w-3 h-3 shrink-0" /> End Outage Simulation
         </button>
       </div>
 
       {/* Demo reset */}
-      <div className="border-t border-gray-800 pt-2">
+      <div className="border-t border-white/[0.05] pt-2">
         <button
           className={btnGray}
           disabled={loading || !destructiveEnabled}
-          onClick={() => setConfirm({ action: 'reset' })}
-          title={
-            !destructiveEnabled
-              ? 'Set ENABLE_DESTRUCTIVE_ACTIONS=true to reset'
-              : 'Delete all demo data'
-          }
+          onClick={() => setConfirmAction('reset')}
+          title={!destructiveEnabled ? 'Set ENABLE_DESTRUCTIVE_ACTIONS=true to reset' : 'Delete all demo data'}
         >
           <RotateCcw className="w-3 h-3 shrink-0" /> Reset Demo Dataset
         </button>
       </div>
 
-      {/* Confirmation modal */}
-      {confirm.action && (
-        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-2 text-orange-400">
-              <AlertTriangle className="w-5 h-5 shrink-0" />
-              <span className="font-semibold font-display">Confirm Action</span>
-            </div>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              {CONFIRM_COPY[confirm.action]}
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                className="px-4 py-1.5 text-xs bg-gray-800 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors"
-                onClick={() => setConfirm({ action: null })}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-500 transition-colors font-medium"
-                onClick={() => {
-                  if (confirm.action === 'failover') triggerFailover();
-                  else if (confirm.action === 'outage_start') startOutage();
-                  else if (confirm.action === 'outage_end') endOutage();
-                  else if (confirm.action === 'reset') resetDemo();
-                }}
-              >
-                Confirm
-              </button>
+      {/* Confirmation modal — glass morphism */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          {/* Double-bezel modal */}
+          <div className="p-px rounded-2xl bg-gradient-to-b from-white/[0.10] to-white/[0.03] ring-1 ring-white/[0.08] shadow-2xl max-w-sm w-full">
+            <div className="bg-[#0f0f14] rounded-[calc(1rem-1px)] p-5 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <div className="flex items-center gap-2 text-orange-400">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span className="font-semibold font-display text-sm">Confirm Action</span>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {CONFIRM_COPY[confirmAction]}
+              </p>
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  className={`px-4 py-1.5 text-xs rounded-lg font-medium ${SPRING} bg-white/[0.05] text-gray-400 border border-white/[0.08] hover:bg-white/[0.08]`}
+                  onClick={() => setConfirmAction(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={`px-4 py-1.5 text-xs rounded-lg font-medium ${SPRING} bg-red-500/[0.15] text-red-300 border border-red-500/30 hover:bg-red-500/[0.25] hover:border-red-500/50`}
+                  onClick={() => {
+                    if (confirmAction === 'failover') triggerFailover();
+                    else if (confirmAction === 'outage_start') startOutage();
+                    else if (confirmAction === 'outage_end') endOutage();
+                    else if (confirmAction === 'reset') resetDemo();
+                  }}
+                >
+                  Confirm
+                </button>
+              </div>
             </div>
           </div>
         </div>

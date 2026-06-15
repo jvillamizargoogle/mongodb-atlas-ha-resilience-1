@@ -7,6 +7,7 @@ import Terminal from './components/Terminal';
 import KPIPanel from './components/KPIPanel';
 import ScenarioNotes from './components/ScenarioNotes';
 import ConnectionBadge from './components/ConnectionBadge';
+import ProviderBadge from './components/ProviderBadge';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -35,11 +36,40 @@ export default function App() {
 
   const isRunning = metrics?.workloadStatus === 'running';
 
+  // Derive real provider/region from Atlas API. Try replicationSpecs first (multi-region),
+  // fall back to top-level providerSettings (single-region dedicated clusters).
+  // Atlas regionName is UPPER_SNAKE (EU_SOUTH_2) — convert to standard format (eu-south-2).
+  // Raw Atlas values (provider = "AWS", region = "EU_SOUTH_2") for the outage simulation API.
+  // Display values (liveProvider = "aws", liveRegion = "eu-south-2") for the header badge.
+  const rawAtlasProvider = (() => {
+    const specs = clusterInfo?.replicationSpecs as Array<Record<string, unknown>> | undefined;
+    const rc = specs?.[0]?.regionConfigs as Array<Record<string, unknown>> | undefined;
+    return (rc?.[0]?.providerName as string | undefined)
+      ?? (clusterInfo?.providerSettings as Record<string, unknown> | undefined)?.providerName as string | undefined
+      ?? null;
+  })();
+  const rawAtlasRegion = (() => {
+    const specs = clusterInfo?.replicationSpecs as Array<Record<string, unknown>> | undefined;
+    const rc = specs?.[0]?.regionConfigs as Array<Record<string, unknown>> | undefined;
+    return (rc?.[0]?.regionName as string | undefined)
+      ?? (clusterInfo?.providerSettings as Record<string, unknown> | undefined)?.regionName as string | undefined
+      ?? null;
+  })();
+
+  const liveProvider = rawAtlasProvider?.toLowerCase() ?? null;
+  const liveRegion   = rawAtlasRegion?.toLowerCase().replaceAll('_', '-') ?? null;
+
   return (
-    <div className="flex flex-col h-screen bg-gray-950 text-gray-100 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen bg-[#080809] text-gray-100 overflow-hidden font-sans">
+
+      {/* Ambient radial glow — fixed, pointer-events-none, GPU-safe */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/4 w-[700px] h-[500px] bg-mdb-green/[0.022] rounded-full blur-[140px]" />
+        <div className="absolute top-1/2 -right-40 w-[500px] h-[500px] bg-blue-500/[0.012] rounded-full blur-[120px]" />
+      </div>
 
       {/* ── Header ── */}
-      <header className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800 shrink-0 z-10">
+      <header className="relative flex items-center justify-between px-4 py-2 bg-[#0c0c10]/90 border-b border-white/[0.06] shrink-0 z-10 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <span className="text-2xl leading-none">🍃</span>
           <div>
@@ -54,11 +84,11 @@ export default function App() {
 
         <div className="flex items-center gap-3">
           {config && (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-800 px-2.5 py-1 rounded-full font-mono">
-              <span className="text-gray-600">{config.appCloudProvider.toUpperCase()}</span>
-              <span className="text-gray-700">/</span>
-              <span>{config.appRegion}</span>
-            </div>
+            <ProviderBadge
+              provider={liveProvider ?? config.appCloudProvider}
+              region={liveRegion ?? config.appRegion}
+              fromAtlas={!!liveProvider}
+            />
           )}
           <ConnectionBadge connected={connected} connectionStatus={metrics?.connectionStatus} />
         </div>
@@ -77,7 +107,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left sidebar */}
-        <aside className="flex flex-col w-64 shrink-0 border-r border-gray-800 bg-gray-900 overflow-y-auto scrollbar-thin">
+        <aside className="flex flex-col w-64 shrink-0 border-r border-white/[0.06] bg-[#0c0c10] overflow-y-auto scrollbar-thin">
           <TopologyPanel
             config={config}
             clusterInfo={clusterInfo}
@@ -87,18 +117,20 @@ export default function App() {
             activeScenario={activeScenario}
             workloadStatus={metrics?.workloadStatus}
           />
-          <div className="border-t border-gray-800 flex-1">
+          <div className="border-t border-white/[0.05] flex-1">
             <ScenarioLauncher
               config={config}
               onScenarioChange={setActiveScenario}
               onToast={showToast}
               isRunning={isRunning}
+              defaultOutageProvider={rawAtlasProvider ?? undefined}
+              defaultOutageRegion={rawAtlasRegion ?? undefined}
             />
           </div>
         </aside>
 
         {/* Center: terminal + KPIs */}
-        <main className="flex flex-col flex-1 overflow-hidden min-w-0">
+        <main className="flex flex-col flex-1 overflow-hidden min-w-0 bg-[#080809]">
           <Terminal
             events={terminalEvents}
             onClear={clearTerminal}
@@ -110,7 +142,7 @@ export default function App() {
         </main>
 
         {/* Right panel: scenario notes */}
-        <aside className="w-72 shrink-0 border-l border-gray-800 bg-gray-900 overflow-y-auto scrollbar-thin">
+        <aside className="w-72 shrink-0 border-l border-white/[0.06] bg-[#0c0c10] overflow-y-auto scrollbar-thin">
           <ScenarioNotes activeScenario={activeScenario} metrics={metrics} />
         </aside>
       </div>
