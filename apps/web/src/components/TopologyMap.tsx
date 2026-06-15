@@ -40,11 +40,11 @@ const ROLE_STYLE: Record<Role, {
     dotAnim:    'animate-pulse-fast',
   },
   SECONDARY: {
-    outer:      'bg-gradient-to-b from-white/[0.055] to-transparent ring-1 ring-white/[0.04]',
+    outer:      'bg-gradient-to-b from-white/[0.07] to-transparent ring-1 ring-white/[0.06]',
     inner:      'bg-[#0c0c10]',
-    labelColor: 'text-gray-500',
-    hostColor:  'text-gray-500',
-    dot:        'bg-gray-700',
+    labelColor: 'text-gray-400',
+    hostColor:  'text-gray-300',
+    dot:        'bg-gray-600',
     dotAnim:    '',
   },
   RECOVERING: {

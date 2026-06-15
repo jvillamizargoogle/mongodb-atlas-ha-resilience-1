@@ -187,11 +187,17 @@ export interface AtlasProcess {
 }
 
 export async function getProcesses(): Promise<AtlasProcess[]> {
-  const projectId = config.ATLAS_PROJECT_ID;
+  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
   if (!projectId) throw new Error('ATLAS_PROJECT_ID must be configured.');
   const result = await atlasRequest<{ results: AtlasProcess[] }>(
     'GET',
     `/groups/${projectId}/processes`
   );
-  return result.results ?? [];
+  const all = result.results ?? [];
+  // The processes endpoint returns ALL processes in the project (every cluster).
+  // Filter to only nodes whose hostname starts with this cluster's name so that
+  // projects with multiple clusters don't show mixed nodes.
+  if (!clusterName) return all;
+  const prefix = clusterName.toLowerCase();
+  return all.filter((p) => p.hostname.toLowerCase().startsWith(prefix));
 }
