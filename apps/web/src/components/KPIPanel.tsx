@@ -52,7 +52,7 @@ function KPITile({
         )}
 
         <div className="relative z-10">
-          <p className="text-[9px] font-display uppercase tracking-[0.12em] text-gray-600 leading-tight mb-1 whitespace-nowrap">
+          <p className="text-[9px] font-display uppercase tracking-[0.12em] text-gray-500 leading-tight mb-1 whitespace-nowrap">
             {label}
           </p>
           <p className={`text-lg font-bold font-display leading-none tabular-nums ${valueColor}`}>
@@ -86,6 +86,13 @@ export default function KPIPanel({ metrics }: Props) {
 
   const fmt = (n: number, d = 1) => n.toFixed(d);
   const fmtMs = (n: number) => (n < 1 ? '<1' : Math.round(n).toString());
+
+  const fmtRelative = (iso: string) => {
+    const diffS = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diffS < 60) return `${diffS}s ago`;
+    if (diffS < 3600) return `${Math.floor(diffS / 60)}m ago`;
+    return `${Math.floor(diffS / 3600)}h ago`;
+  };
 
   const errorPct = (metrics?.errorRate ?? 0) * 100;
   const failedOps = metrics?.failedOps ?? 0;
@@ -165,11 +172,7 @@ export default function KPIPanel({ metrics }: Props) {
         />
         <KPITile
           label="Failover"
-          value={
-            metrics?.lastFailoverTime
-              ? new Date(metrics.lastFailoverTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-              : '—'
-          }
+          value={metrics?.lastFailoverTime ? fmtRelative(metrics.lastFailoverTime) : '—'}
           valueColor="text-orange-400"
           sub={`uptime ${metrics?.uptime ?? 0}s`}
         />
