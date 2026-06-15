@@ -132,7 +132,26 @@ export default function TopologyMap({ processes, loading }: Props) {
   const prevPrimaryIdRef = useRef<string | null>(null);
   const [newPrimaryId, setNewPrimaryId] = useState<string | null>(null);
 
-  const primaryProcess = processes.find((p) => deriveRole(p.typeName) === 'PRIMARY');
+  // Group all processes by replicaSetName; pick the group that has a PRIMARY
+  // (i.e., the active shard for this cluster). Multi-cluster projects return
+  // processes for every cluster — grouping avoids hostname-prefix guessing.
+  const activeNodes = (() => {
+    if (processes.length === 0) return [];
+    const groups = new Map<string, typeof processes>();
+    for (const p of processes) {
+      const key = p.replicaSetName ?? 'unknown';
+      const g = groups.get(key) ?? [];
+      g.push(p);
+      groups.set(key, g);
+    }
+    // Prefer the group that contains a PRIMARY; fall back to the largest group.
+    for (const group of groups.values()) {
+      if (group.some((p) => deriveRole(p.typeName) === 'PRIMARY')) return group;
+    }
+    return [...groups.values()].sort((a, b) => b.length - a.length)[0] ?? [];
+  })();
+
+  const primaryProcess = activeNodes.find((p) => deriveRole(p.typeName) === 'PRIMARY');
 
   // Detect primary change and trigger flash
   useEffect(() => {
@@ -146,7 +165,7 @@ export default function TopologyMap({ processes, loading }: Props) {
   }, [primaryProcess]);
 
   // Sort: PRIMARY first, then SECONDARY, then RECOVERING
-  const sorted = [...processes].sort((a, b) => {
+  const sorted = [...activeNodes].sort((a, b) => {
     const order: Record<Role, number> = { PRIMARY: 0, SECONDARY: 1, RECOVERING: 2, OTHER: 3 };
     return order[deriveRole(a.typeName)] - order[deriveRole(b.typeName)];
   });
