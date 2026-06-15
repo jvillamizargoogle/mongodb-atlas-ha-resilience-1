@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment — never commit secrets
+.env
+.env.local
+
+# Claude Code session artifacts
+.claude/
+.agents/
+.impeccable/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
