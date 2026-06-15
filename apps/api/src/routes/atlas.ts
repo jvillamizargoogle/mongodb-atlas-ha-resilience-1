@@ -130,6 +130,15 @@ router.post('/outage/end', async (_req, res) => {
   }
 });
 
+router.get('/processes', async (_req, res) => {
+  try {
+    const data = await atlasService.getProcesses();
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(503).json({ success: false, error: sanitize(err) });
+  }
+});
+
 router.get('/outage/status', async (_req, res) => {
   try {
     const data = await atlasService.getOutageStatus();

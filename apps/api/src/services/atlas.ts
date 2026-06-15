@@ -176,3 +176,22 @@ export async function getOutageStatus(): Promise<Record<string, unknown>> {
     `/groups/${projectId}/clusters/${clusterName}/outageSimulation`
   );
 }
+
+export interface AtlasProcess {
+  id: string;
+  hostname: string;
+  port: number;
+  typeName: string;
+  version: string;
+  replicaSetName?: string;
+}
+
+export async function getProcesses(): Promise<AtlasProcess[]> {
+  const projectId = config.ATLAS_PROJECT_ID;
+  if (!projectId) throw new Error('ATLAS_PROJECT_ID must be configured.');
+  const result = await atlasRequest<{ results: AtlasProcess[] }>(
+    'GET',
+    `/groups/${projectId}/processes`
+  );
+  return result.results ?? [];
+}

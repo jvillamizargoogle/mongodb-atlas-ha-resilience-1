@@ -32,6 +32,9 @@ export const api = {
   topology: () =>
     request<Record<string, unknown>>('GET', '/atlas/topology'),
 
+  processes: () =>
+    request<Record<string, unknown>[]>('GET', '/atlas/processes'),
+
   triggerFailover: (confirmed: boolean) =>
     request<void>('POST', '/atlas/failover', { confirmed }),
 

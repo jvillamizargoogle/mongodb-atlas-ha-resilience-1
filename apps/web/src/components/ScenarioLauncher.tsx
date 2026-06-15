@@ -16,6 +16,7 @@ interface Props {
   config: PublicConfig | null;
   onScenarioChange: (id: string | null) => void;
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+  onFailover?: () => void;
   isRunning: boolean;
   defaultOutageProvider?: string;
   defaultOutageRegion?: string;
@@ -27,6 +28,7 @@ export default function ScenarioLauncher({
   config,
   onScenarioChange,
   onToast,
+  onFailover,
   isRunning,
   defaultOutageProvider,
   defaultOutageRegion,
@@ -94,8 +96,12 @@ export default function ScenarioLauncher({
     setConfirmAction(null);
     try {
       const res = await api.triggerFailover(true);
-      if (res.success) onToast('Failover triggered — election in progress', 'success');
-      else onToast(res.error ?? 'Failover failed', 'error');
+      if (res.success) {
+        onToast('Failover triggered — election in progress', 'success');
+        onFailover?.();
+      } else {
+        onToast(res.error ?? 'Failover failed', 'error');
+      }
     } finally {
       setLoading(false);
     }

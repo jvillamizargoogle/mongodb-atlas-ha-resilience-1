@@ -24,7 +24,7 @@ const TOAST_BG: Record<ToastType, string> = {
 
 export default function App() {
   const { connected, terminalEvents, metrics, clearTerminal } = useSSE();
-  const { config, clusterInfo, loading, error, refresh } = useAtlas();
+  const { config, clusterInfo, processes, processesLoading, loading, error, refresh, startBurstRefresh } = useAtlas();
 
   const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -57,7 +57,7 @@ export default function App() {
   })();
 
   const liveProvider = rawAtlasProvider?.toLowerCase() ?? null;
-  const liveRegion   = rawAtlasRegion?.toLowerCase().replaceAll('_', '-') ?? null;
+  const liveRegion   = rawAtlasRegion?.toLowerCase().replace(/_/g, '-') ?? null;
 
   return (
     <div className="flex flex-col h-screen bg-[#080809] text-gray-100 overflow-hidden font-sans">
@@ -111,6 +111,8 @@ export default function App() {
           <TopologyPanel
             config={config}
             clusterInfo={clusterInfo}
+            processes={processes}
+            processesLoading={processesLoading}
             loading={loading}
             error={error}
             onRefresh={refresh}
@@ -122,6 +124,7 @@ export default function App() {
               config={config}
               onScenarioChange={setActiveScenario}
               onToast={showToast}
+              onFailover={startBurstRefresh}
               isRunning={isRunning}
               defaultOutageProvider={rawAtlasProvider ?? undefined}
               defaultOutageRegion={rawAtlasRegion ?? undefined}
