@@ -40,6 +40,7 @@ export default function ScenarioLauncher({
   const [outageProvider, setOutageProvider] = useState(defaultOutageProvider ?? 'AWS');
   const [outageRegion, setOutageRegion] = useState(defaultOutageRegion ?? 'US_EAST_1');
   const [editingTarget, setEditingTarget] = useState(false);
+  const [readPref, setReadPref] = useState<'primary' | 'secondaryPreferred'>('primary');
 
   const atlasEnabled = config?.atlasControlPlaneEnabled ?? false;
   const destructiveEnabled = config?.destructiveActionsEnabled ?? false;
@@ -60,6 +61,8 @@ export default function ScenarioLauncher({
   async function startWorkload(type: 'write' | 'read' | 'update' | 'mixed' | 'bulk') {
     if (loading || isRunning) return;
     setLoading(true);
+    // Pass read preference for workloads that perform reads
+    const cfg = (type === 'read' || type === 'mixed') ? { readPreference: readPref } : undefined;
     try {
       const handlers = {
         write: api.startWriteWorkload,
@@ -68,7 +71,7 @@ export default function ScenarioLauncher({
         mixed: api.startMixedWorkload,
         bulk: api.startBulkWorkload,
       };
-      const res = await handlers[type]();
+      const res = await handlers[type](cfg);
       if (res.success && res.data) {
         onScenarioChange(res.data.scenarioId);
         onToast(`${type} workload started`, 'success');
@@ -175,6 +178,41 @@ export default function ScenarioLauncher({
         <p className="text-[9px] text-gray-600 uppercase tracking-[0.18em] font-display mb-1.5">
           Workloads
         </p>
+
+        {/* Read preference toggle — applies to Read and Mixed workloads */}
+        <div className="mb-2">
+          <p className="text-[9px] text-gray-600 uppercase tracking-[0.14em] font-display mb-1">
+            Read Preference
+          </p>
+          <div className="flex p-px rounded-lg bg-white/[0.04] border border-white/[0.06] gap-px">
+            {(['primary', 'secondaryPreferred'] as const).map((pref) => {
+              const active = readPref === pref;
+              const label = pref === 'primary' ? 'Primary' : 'Secondary ✦';
+              return (
+                <button
+                  key={pref}
+                  onClick={() => setReadPref(pref)}
+                  disabled={isRunning}
+                  className={`flex-1 py-1 text-[9px] font-mono font-medium rounded-[calc(0.5rem-1px)] transition-all duration-150 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-95 disabled:opacity-40 ${
+                    active
+                      ? pref === 'secondaryPreferred'
+                        ? 'bg-blue-500/[0.15] text-blue-300 border border-blue-500/30'
+                        : 'bg-white/[0.08] text-gray-200 border border-white/[0.12]'
+                      : 'text-gray-600 hover:text-gray-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {readPref === 'secondaryPreferred' && (
+            <p className="text-[9px] text-blue-400/70 mt-1 px-0.5 leading-tight">
+              Reads survive primary failover with zero interruption
+            </p>
+          )}
+        </div>
+
         <button className={btnGreen} disabled={isRunning || loading} onClick={() => startWorkload('write')}>
           <Play className="w-3 h-3 shrink-0" /> Write Workload
         </button>

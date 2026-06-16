@@ -1,5 +1,5 @@
-import { useRef, useEffect, useCallback } from 'react';
-import { Terminal as TerminalIcon, Trash2 } from 'lucide-react';
+import { useRef, useEffect, useCallback, useState } from 'react';
+import { Terminal as TerminalIcon, Trash2, ArrowDownToLine } from 'lucide-react';
 import type { TerminalEvent, ConnectionStatus } from '@atlas-demo/shared';
 
 interface Props {
@@ -32,22 +32,29 @@ const STATUS_PREFIX: Record<string, string> = {
 };
 
 export default function Terminal({ events, onClear, connectionStatus }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // true = follow new output; flips to false when user scrolls up intentionally
-  const autoScrollRef = useRef(true);
+  const [following, setFollowing] = useState(true);
 
+  // Scroll the container div directly — scrollIntoView targets the viewport, not the div.
+  const scrollToBottom = useCallback(() => {
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, []);
+
+  // When 'following' is true, jump to bottom whenever a new event arrives.
+  useEffect(() => {
+    if (following) scrollToBottom();
+  }, [events.length, following, scrollToBottom]);
+
+  // If the user scrolls up, pause following; scrolling back to the bottom resumes it.
   const handleScroll = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    autoScrollRef.current = distFromBottom < 60;
+    setFollowing(distFromBottom < 60);
   }, []);
 
-  useEffect(() => {
-    if (!autoScrollRef.current) return;
-    bottomRef.current?.scrollIntoView({ behavior: 'instant' });
-  }, [events.length]);
+  const SPRING = 'transition-all duration-150 ease-[cubic-bezier(0.32,0.72,0,1)]';
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -67,8 +74,28 @@ export default function Terminal({ events, onClear, connectionStatus }: Props) {
             )}
           </span>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2">
+          {/* Follow toggle */}
+          <button
+            onClick={() => {
+              const next = !following;
+              setFollowing(next);
+              if (next) scrollToBottom();
+            }}
+            title={following ? 'Auto-scroll on — click to pause' : 'Auto-scroll off — click to follow'}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-mono active:scale-95 ${SPRING} ${
+              following
+                ? 'bg-mdb-green/[0.12] border-mdb-green/30 text-mdb-green'
+                : 'bg-white/[0.04] border-white/[0.08] text-gray-500 hover:text-gray-300 hover:border-white/[0.14]'
+            }`}
+          >
+            <ArrowDownToLine className="w-2.5 h-2.5 shrink-0" />
+            Follow
+          </button>
+
           <span className="text-xs text-gray-700 font-mono">{events.length} events</span>
+
           <button
             onClick={onClear}
             className="text-gray-600 hover:text-gray-300 transition-colors"
@@ -155,7 +182,6 @@ export default function Terminal({ events, onClear, connectionStatus }: Props) {
             </div>
           ))
         )}
-        <div ref={bottomRef} />
       </div>
     </div>
   );
