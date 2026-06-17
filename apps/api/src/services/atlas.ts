@@ -102,8 +102,10 @@ async function atlasRequest<T>(method: string, path: string, body?: unknown): Pr
       const detail = String(json['detail'] ?? json['message'] ?? '');
       const code = json['errorCode'] ? ` [${json['errorCode']}]` : '';
       errorMessage = detail ? `${detail}${code}` : `HTTP ${response.status}${code}`;
+      // Log the full Atlas error body so backend logs show the real cause
+      console.error(`[Atlas API] ${method} ${path} → ${response.status}`, json);
     } catch {
-      // keep default
+      console.error(`[Atlas API] ${method} ${path} → ${response.status} (non-JSON body)`, text);
     }
     throw new Error(errorMessage);
   }
@@ -150,10 +152,13 @@ export async function startOutage(
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
+  // type: "REGION" simulates an outage for all nodes in the named region,
+  // regardless of cloud provider. This is what the API requires — omitting
+  // `type` causes UNEXPECTED_ERROR even if cloudProvider and regionName are set.
   return atlasRequest<Record<string, unknown>>(
     'POST',
     `/groups/${projectId}/clusters/${clusterName}/outageSimulation`,
-    { outageFilters: [{ cloudProvider: providerName, regionName }] }
+    { outageFilters: [{ type: 'REGION', regionName }] }
   );
 }
 
