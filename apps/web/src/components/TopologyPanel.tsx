@@ -72,8 +72,6 @@ export default function TopologyPanel({
     return out.sort((a, b) => b.priority - a.priority);
   }, [clusterInfo]);
 
-  const primaryRegion = clusterRegions[0];
-
   return (
     <div className="p-3 space-y-3">
 
@@ -150,7 +148,6 @@ export default function TopologyPanel({
           processes={processes}
           loading={processesLoading}
           onPrimaryChange={onPrimaryChange}
-          primaryRegion={primaryRegion}
         />
       </div>
     </div>

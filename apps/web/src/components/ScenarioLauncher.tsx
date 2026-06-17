@@ -146,15 +146,20 @@ export default function ScenarioLauncher({
     try {
       const res = await api.outageStatus();
       if (res.success && res.data) {
-        const status = (res.data as Record<string, unknown>).simulationStatus as string | undefined;
-        if (!status || status === 'IDLE') {
+        // Atlas Admin API v2 returns `state`, not `simulationStatus`
+        const state = (res.data as Record<string, unknown>).state as string | undefined;
+        if (!state || state === 'IDLE') {
           setOutageSimStatus(null);
           stopOutagePoller();
         } else {
-          setOutageSimStatus(status);
+          setOutageSimStatus(state);
         }
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      // 404 = no active simulation — clear status and stop polling
+      setOutageSimStatus(null);
+      stopOutagePoller();
+    }
   }, [stopOutagePoller]);
 
   const startOutagePoller = useCallback(() => {
@@ -169,6 +174,26 @@ export default function ScenarioLauncher({
   const destructiveEnabled = config?.destructiveActionsEnabled ?? false;
   const clusterBusy      = !!clusterState && clusterState !== 'IDLE';
   const hasAtlasTarget   = !!defaultOutageProvider;
+
+  // On mount (or when atlas becomes enabled), check for an existing simulation so a
+  // page refresh during an active outage still shows the status chip and polls.
+  useEffect(() => {
+    if (!atlasEnabled) return;
+    let live = true;
+    api.outageStatus()
+      .then(res => {
+        if (!live || !res.success || !res.data) return;
+        const state = (res.data as Record<string, unknown>).state as string | undefined;
+        if (state && state !== 'IDLE') {
+          setOutageSimStatus(state);
+          if (!outagePollerRef.current) {
+            outagePollerRef.current = setInterval(pollOutageStatus, 5_000);
+          }
+        }
+      })
+      .catch(() => { /* 404 = no active simulation — expected */ });
+    return () => { live = false; };
+  }, [atlasEnabled, pollOutageStatus]);
 
   const SPRING = 'transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.97]';
 
@@ -495,8 +520,9 @@ export default function ScenarioLauncher({
         {/* Outage simulation status — polled from Atlas Admin API.
             Always rendered; max-h/opacity animate it in and out smoothly. */}
         {(() => {
-          const isActive   = outageSimStatus === 'ACTIVE';
-          const isStopping = !!outageSimStatus?.startsWith('STOP');
+          // Atlas Admin API v2 state values: START_REQUESTED → SIMULATING → RECOVERY → IDLE
+          const isActive   = outageSimStatus === 'SIMULATING';
+          const isStopping = outageSimStatus === 'RECOVERY';
           const shell = isActive
             ? 'bg-gradient-to-b from-red-500/[0.22] to-red-500/[0.05] ring-1 ring-red-500/[0.14]'
             : isStopping
