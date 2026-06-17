@@ -479,7 +479,7 @@ export default function ScenarioLauncher({
 
         <button
           className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-medium ${SPRING} disabled:opacity-30 disabled:cursor-not-allowed bg-red-500/[0.08] border-red-500/20 text-red-400 hover:bg-red-500/[0.14] hover:border-red-500/45 hover:-translate-y-px`}
-          disabled={!atlasEnabled || !destructiveEnabled || loading}
+          disabled={!atlasEnabled || !destructiveEnabled || loading || !!outageSimStatus}
           onClick={() => setConfirmAction('outage_start')}
         >
           <ShieldOff className="w-3.5 h-3.5 shrink-0" /> Start Outage Simulation
