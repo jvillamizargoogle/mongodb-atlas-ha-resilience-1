@@ -412,7 +412,8 @@ export default function ScenarioLauncher({
         {outageRegions && outageRegions.length > 0 && !editingTarget ? (
           // Multi-region: dropdown listing all electable regions sorted by priority
           <div className="flex items-center gap-1.5">
-            <div className="relative flex-1">
+            {/* Doppelrand wrapper — gradient hairline ring around the native select */}
+            <div className="relative flex-1 p-px rounded-lg bg-gradient-to-b from-white/[0.10] to-white/[0.03] ring-1 ring-white/[0.06]">
               <select
                 value={`${outageProvider}||${outageRegion}`}
                 onChange={e => {
@@ -420,7 +421,7 @@ export default function ScenarioLauncher({
                   setOutageProvider(p);
                   setOutageRegion(r);
                 }}
-                className="w-full appearance-none bg-white/[0.04] border border-white/[0.08] rounded-lg pl-2.5 pr-7 py-1.5 text-[10px] text-gray-300 font-mono focus:outline-none focus:border-mdb-green/40 transition-colors duration-150 cursor-pointer"
+                className="w-full appearance-none bg-[#0c0c10] rounded-[calc(0.5rem-1px)] pl-2.5 pr-7 py-1.5 text-[10px] text-gray-300 font-mono focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
               >
                 {outageRegions.map(r => (
                   <option key={`${r.provider}||${r.region}`} value={`${r.provider}||${r.region}`}>
@@ -431,7 +432,7 @@ export default function ScenarioLauncher({
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600 pointer-events-none" />
             </div>
             <button
-              className="shrink-0 p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/[0.05] transition-colors duration-150"
+              className="shrink-0 p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/[0.06] transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.92]"
               onClick={() => setEditingTarget(true)}
               title="Enter custom outage target"
             >
@@ -496,21 +497,35 @@ export default function ScenarioLauncher({
           <Globe className="w-3.5 h-3.5 shrink-0" /> End Outage Simulation
         </button>
 
-        {/* Outage simulation status — polled from Atlas Admin API */}
-        {outageSimStatus && (() => {
-          const isActive  = outageSimStatus === 'ACTIVE';
-          const isStopping = outageSimStatus.startsWith('STOP');
-          const color = isActive
-            ? 'text-red-400 bg-red-500/[0.08] border-red-500/[0.15]'
+        {/* Outage simulation status — polled from Atlas Admin API.
+            Always rendered; max-h/opacity animate it in and out smoothly. */}
+        {(() => {
+          const isActive   = outageSimStatus === 'ACTIVE';
+          const isStopping = !!outageSimStatus?.startsWith('STOP');
+          const shell = isActive
+            ? 'bg-gradient-to-b from-red-500/[0.22] to-red-500/[0.05] ring-1 ring-red-500/[0.14]'
             : isStopping
-            ? 'text-yellow-400 bg-yellow-500/[0.08] border-yellow-500/[0.15]'
-            : 'text-orange-400 bg-orange-500/[0.08] border-orange-500/[0.15]';
+            ? 'bg-gradient-to-b from-yellow-500/[0.18] to-yellow-500/[0.04] ring-1 ring-yellow-500/[0.12]'
+            : 'bg-gradient-to-b from-orange-500/[0.18] to-orange-500/[0.04] ring-1 ring-orange-500/[0.12]';
+          const core = isActive ? 'bg-red-500/[0.08]' : isStopping ? 'bg-yellow-500/[0.07]' : 'bg-orange-500/[0.07]';
+          const dot  = isActive ? 'bg-red-400' : isStopping ? 'bg-yellow-400 animate-pulse' : 'bg-orange-400 animate-pulse';
+          const text = isActive ? 'text-red-400' : isStopping ? 'text-yellow-400' : 'text-orange-400';
+          const glow = isActive ? 'bg-red-500/25' : isStopping ? 'bg-yellow-500/20' : 'bg-orange-500/20';
           return (
-            <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border ${color}`}>
-              <span className={`w-1.5 h-1.5 rounded-full bg-current shrink-0 ${isActive ? '' : 'animate-pulse'}`} />
-              <span className="text-[9px] font-mono font-semibold tracking-wide flex-1">
-                {outageSimStatus.replace(/_/g, ' ')}
-              </span>
+            <div className={`overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              outageSimStatus ? 'max-h-12 opacity-100' : 'max-h-0 opacity-0'
+            }`}>
+              <div className="relative">
+                <div className={`absolute inset-0 pointer-events-none rounded-lg blur-xl ${glow}`} />
+                <div className={`relative p-px rounded-lg ${shell}`}>
+                  <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-[calc(0.5rem-1px)] ${core} shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`}>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+                    <span className={`text-[9px] font-mono font-semibold tracking-wide flex-1 ${text}`}>
+                      {outageSimStatus?.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })()}

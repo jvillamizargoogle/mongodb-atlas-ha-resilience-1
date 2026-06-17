@@ -183,7 +183,7 @@ export default function App() {
           <button
             onClick={() => setLeftOpen(o => !o)}
             title={leftOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full flex items-center justify-center w-4 h-10 bg-[#0c0c10] border-t border-b border-r border-white/[0.08] rounded-r-md text-gray-600 hover:text-gray-200 hover:border-white/[0.18] hover:bg-white/[0.05] transition-all duration-150 active:scale-y-95"
+            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full flex items-center justify-center w-4 h-10 bg-[#0c0c10] border-t border-b border-r border-white/[0.08] rounded-r-md text-gray-700 hover:text-gray-200 hover:border-white/[0.20] hover:bg-white/[0.06] transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-y-[0.92]"
           >
             {leftOpen
               ? <ChevronLeft  className="w-2.5 h-2.5" />
@@ -209,7 +209,7 @@ export default function App() {
           <button
             onClick={() => setRightOpen(o => !o)}
             title={rightOpen ? 'Collapse notes panel' : 'Expand notes panel'}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full flex items-center justify-center w-4 h-10 bg-[#0c0c10] border-t border-b border-l border-white/[0.08] rounded-l-md text-gray-600 hover:text-gray-200 hover:border-white/[0.18] hover:bg-white/[0.05] transition-all duration-150 active:scale-y-95"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full flex items-center justify-center w-4 h-10 bg-[#0c0c10] border-t border-b border-l border-white/[0.08] rounded-l-md text-gray-700 hover:text-gray-200 hover:border-white/[0.20] hover:bg-white/[0.06] transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-y-[0.92]"
           >
             {rightOpen
               ? <ChevronRight className="w-2.5 h-2.5" />
