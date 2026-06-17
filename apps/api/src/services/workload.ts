@@ -367,6 +367,7 @@ export async function startWorkload(type: WorkloadType, cfg: WorkloadConfig): Pr
       currentWorkloadType = null;
       currentScenarioId = null;
       metricsTracker.setWorkloadStatus('idle');
+      emitMetrics();
       emit({
         type: 'system',
         status: 'info',
@@ -384,6 +385,7 @@ export async function startWorkload(type: WorkloadType, cfg: WorkloadConfig): Pr
       currentWorkloadType = null;
       currentScenarioId = null;
       metricsTracker.setWorkloadStatus('error');
+      emitMetrics();
       const msg = err instanceof Error ? err.message : String(err);
       emit({ type: 'error', status: 'failure', message: `Workload runner error: ${msg}`, region: config.APP_REGION });
     });
@@ -396,6 +398,7 @@ export function stopWorkload(): { stopped: boolean } {
     throw new Error('No workload is currently running.');
   }
   metricsTracker.setWorkloadStatus('stopping');
+  emitMetrics();
   abortController.abort();
   abortController = null;
   return { stopped: true };
