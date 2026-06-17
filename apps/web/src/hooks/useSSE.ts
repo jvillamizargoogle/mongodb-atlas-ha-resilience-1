@@ -4,15 +4,22 @@ import type { SSEEvent, TerminalEvent, MetricsSnapshot } from '@atlas-demo/share
 interface SSEState {
   connected: boolean;
   terminalEvents: TerminalEvent[];
+  csEvents: TerminalEvent[];
   metrics: MetricsSnapshot | null;
 }
 
 const MAX_TERMINAL_EVENTS = 500;
+// change_stream events get a separate, smaller ring buffer so high-throughput
+// workloads (bulk/update with many docs per op) don't evict op-events from
+// the main buffer. Each updateMany(234 docs) fires 234 change_stream events
+// but only 1 terminal event — the shared buffer was filling ~99% with cs noise.
+const MAX_CS_EVENTS = 200;
 
 export function useSSE() {
   const [state, setState] = useState<SSEState>({
     connected: false,
     terminalEvents: [],
+    csEvents: [],
     metrics: null,
   });
 
@@ -35,12 +42,13 @@ export function useSSE() {
           if (event.type === 'metrics') {
             return { ...s, metrics: event.payload as MetricsSnapshot };
           }
-          if (event.type === 'terminal' || event.type === 'change_stream') {
+          if (event.type === 'change_stream') {
             const te = event.payload as TerminalEvent;
-            return {
-              ...s,
-              terminalEvents: [...s.terminalEvents, te].slice(-MAX_TERMINAL_EVENTS),
-            };
+            return { ...s, csEvents: [...s.csEvents, te].slice(-MAX_CS_EVENTS) };
+          }
+          if (event.type === 'terminal') {
+            const te = event.payload as TerminalEvent;
+            return { ...s, terminalEvents: [...s.terminalEvents, te].slice(-MAX_TERMINAL_EVENTS) };
           }
           if (event.type === 'ping') {
             return { ...s, connected: true };
@@ -70,7 +78,7 @@ export function useSSE() {
   }, [connect]);
 
   const clearTerminal = useCallback(() => {
-    setState((s) => ({ ...s, terminalEvents: [] }));
+    setState((s) => ({ ...s, terminalEvents: [], csEvents: [] }));
   }, []);
 
   return { ...state, clearTerminal };

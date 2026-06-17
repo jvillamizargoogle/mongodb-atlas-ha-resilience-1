@@ -24,7 +24,7 @@ const TOAST_BG: Record<ToastType, string> = {
 const FAILOVER_RECENT_MS = 5 * 60 * 1000; // 5 min
 
 export default function App() {
-  const { connected, terminalEvents, metrics, clearTerminal } = useSSE();
+  const { connected, terminalEvents, csEvents, metrics, clearTerminal } = useSSE();
   const { config, clusterInfo, processes, processesLoading, loading, error, refresh, startBurstRefresh, resumeCluster } = useAtlas();
 
   const [activeScenario,   setActiveScenario]   = useState<string | null>(null);
@@ -195,6 +195,7 @@ export default function App() {
         <main className="flex flex-col flex-1 overflow-hidden min-w-0 bg-[#080809]">
           <Terminal
             events={terminalEvents}
+            csEvents={csEvents}
             onClear={clearTerminal}
             connectionStatus={metrics?.connectionStatus}
           />

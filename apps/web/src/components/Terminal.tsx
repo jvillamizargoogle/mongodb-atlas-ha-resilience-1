@@ -4,6 +4,7 @@ import type { TerminalEvent, ConnectionStatus } from '@atlas-demo/shared';
 
 interface Props {
   events: TerminalEvent[];
+  csEvents?: TerminalEvent[];
   onClear: () => void;
   connectionStatus?: ConnectionStatus;
 }
@@ -31,13 +32,28 @@ const STATUS_PREFIX: Record<string, string> = {
   warning: '⚠',
 };
 
-export default function Terminal({ events, onClear, connectionStatus }: Props) {
+export default function Terminal({ events, csEvents = [], onClear, connectionStatus }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Hide change-stream events by default — they're verbose and secondary to HA demo
   const [showCS, setShowCS] = useState(false);
 
-  const visibleEvents = showCS ? events : events.filter(e => e.type !== 'change_stream');
+  // Merge op-events and cs-events by timestamp when CS view is active.
+  // Both arrays arrive in chronological order, so a linear merge is O(n).
+  // When CS is off, op-events are shown as-is from their dedicated ring buffer
+  // (change_stream events no longer share the 500-slot main buffer).
+  const visibleEvents = (() => {
+    if (!showCS || csEvents.length === 0) return events;
+    const out: TerminalEvent[] = [];
+    let i = 0, j = 0;
+    while (i < events.length && j < csEvents.length) {
+      if (events[i].timestamp <= csEvents[j].timestamp) out.push(events[i++]);
+      else out.push(csEvents[j++]);
+    }
+    while (i < events.length) out.push(events[i++]);
+    while (j < csEvents.length) out.push(csEvents[j++]);
+    return out;
+  })();
 
   // Separate ref (scroll logic, no re-renders) from state (button visual only).
   const followingRef = useRef(true);
