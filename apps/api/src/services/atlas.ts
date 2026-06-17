@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { config } from '../config';
 
-const ATLAS_MEDIA_TYPE = 'application/vnd.atlas.2023-01-01+json';
+// 2024-08-05 is the minimum version that returns the advanced cluster description
+// format, which is required for multi-cloud / multi-region clusters.
+const ATLAS_MEDIA_TYPE = 'application/vnd.atlas.2024-08-05+json';
 
 // ── HTTP Digest Authentication ──────────────────────────────────────────────
 // Atlas Admin API v2 requires Digest auth, not Basic auth.

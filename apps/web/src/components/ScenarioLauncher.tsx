@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Square,
@@ -108,6 +108,9 @@ export default function ScenarioLauncher({
   const [regionTouched,   setRegionTouched]   = useState(false);
   // Optimistic "stopped" flag — SSE metrics may lag behind after stop API call
   const [localStopped,   setLocalStopped]   = useState(false);
+  // Outage simulation status polled from Atlas Admin API
+  const [outageSimStatus, setOutageSimStatus] = useState<string | null>(null);
+  const outagePollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clear optimistic flag once SSE confirms the workload has stopped
   useEffect(() => {
@@ -129,6 +132,38 @@ export default function ScenarioLauncher({
   }, [outageRegions, defaultOutageProvider, defaultOutageRegion, providerTouched, regionTouched]);
 
   const effectivelyRunning = isRunning && !localStopped;
+
+  // ── Outage simulation status polling ────────────────────────────────────────
+
+  const stopOutagePoller = useCallback(() => {
+    if (outagePollerRef.current) {
+      clearInterval(outagePollerRef.current);
+      outagePollerRef.current = null;
+    }
+  }, []);
+
+  const pollOutageStatus = useCallback(async () => {
+    try {
+      const res = await api.outageStatus();
+      if (res.success && res.data) {
+        const status = (res.data as Record<string, unknown>).simulationStatus as string | undefined;
+        if (!status || status === 'IDLE') {
+          setOutageSimStatus(null);
+          stopOutagePoller();
+        } else {
+          setOutageSimStatus(status);
+        }
+      }
+    } catch { /* non-fatal */ }
+  }, [stopOutagePoller]);
+
+  const startOutagePoller = useCallback(() => {
+    stopOutagePoller();
+    outagePollerRef.current = setInterval(pollOutageStatus, 5_000);
+  }, [pollOutageStatus, stopOutagePoller]);
+
+  // Clean up poller on unmount
+  useEffect(() => () => stopOutagePoller(), [stopOutagePoller]);
 
   const atlasEnabled     = config?.atlasControlPlaneEnabled ?? false;
   const destructiveEnabled = config?.destructiveActionsEnabled ?? false;
@@ -181,8 +216,13 @@ export default function ScenarioLauncher({
     setLoading(true); setConfirmAction(null);
     try {
       const res = await api.startOutage(true, outageProvider, outageRegion);
-      if (res.success) onToast(`Outage started: ${outageProvider}/${outageRegion}`, 'success');
-      else onToast(res.error ?? 'Outage start failed', 'error');
+      if (res.success) {
+        onToast(`Outage started: ${outageProvider}/${outageRegion}`, 'success');
+        setOutageSimStatus('START_REQUESTED');
+        startOutagePoller();
+      } else {
+        onToast(res.error ?? 'Outage start failed', 'error');
+      }
     } finally { setLoading(false); }
   }
 
@@ -190,8 +230,13 @@ export default function ScenarioLauncher({
     setLoading(true); setConfirmAction(null);
     try {
       const res = await api.endOutage();
-      if (res.success) onToast('Outage ended', 'success');
-      else onToast(res.error ?? 'Outage end failed', 'error');
+      if (res.success) {
+        onToast('Outage ended', 'success');
+        setOutageSimStatus('STOP_REQUESTED');
+        startOutagePoller(); // Keep polling until Atlas confirms IDLE
+      } else {
+        onToast(res.error ?? 'Outage end failed', 'error');
+      }
     } finally { setLoading(false); }
   }
 
@@ -450,6 +495,25 @@ export default function ScenarioLauncher({
         >
           <Globe className="w-3.5 h-3.5 shrink-0" /> End Outage Simulation
         </button>
+
+        {/* Outage simulation status — polled from Atlas Admin API */}
+        {outageSimStatus && (() => {
+          const isActive  = outageSimStatus === 'ACTIVE';
+          const isStopping = outageSimStatus.startsWith('STOP');
+          const color = isActive
+            ? 'text-red-400 bg-red-500/[0.08] border-red-500/[0.15]'
+            : isStopping
+            ? 'text-yellow-400 bg-yellow-500/[0.08] border-yellow-500/[0.15]'
+            : 'text-orange-400 bg-orange-500/[0.08] border-orange-500/[0.15]';
+          return (
+            <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border ${color}`}>
+              <span className={`w-1.5 h-1.5 rounded-full bg-current shrink-0 ${isActive ? '' : 'animate-pulse'}`} />
+              <span className="text-[9px] font-mono font-semibold tracking-wide flex-1">
+                {outageSimStatus.replace(/_/g, ' ')}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Demo reset ── */}
