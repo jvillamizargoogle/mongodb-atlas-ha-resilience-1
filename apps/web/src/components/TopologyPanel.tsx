@@ -1,38 +1,25 @@
-import { RefreshCw, Database, Activity, Network } from 'lucide-react';
-import type { PublicConfig, WorkloadStatus } from '@atlas-demo/shared';
+import { RefreshCw, Database, Network } from 'lucide-react';
+import type { PublicConfig } from '@atlas-demo/shared';
 import type { AtlasProcess } from '../hooks/useAtlas';
 import TopologyMap from './TopologyMap';
 
 interface Props {
-  config: PublicConfig | null;
-  clusterInfo: Record<string, unknown> | null;
-  processes: AtlasProcess[];
+  config:           PublicConfig | null;
+  clusterInfo:      Record<string, unknown> | null;
+  processes:        AtlasProcess[];
   processesLoading: boolean;
-  loading: boolean;
-  error: string | null;
-  onRefresh: () => void;
-  activeScenario: string | null;
-  workloadStatus?: WorkloadStatus;
+  loading:          boolean;
+  error:            string | null;
+  onRefresh:        () => void;
+  onPrimaryChange?: () => void;
 }
 
-function InfoRow({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value?: string | number | null;
-  mono?: boolean;
-}) {
+function InfoRow({ label, value, mono = false }: { label: string; value?: string | number | null; mono?: boolean }) {
   if (value === undefined || value === null || value === '') return null;
   return (
     <div className="flex justify-between items-start gap-2 py-1">
       <span className="text-xs text-gray-500 shrink-0">{label}</span>
-      <span
-        className={`text-xs text-right truncate max-w-[130px] ${
-          mono ? 'font-mono text-mdb-green' : 'text-gray-300'
-        }`}
-      >
+      <span className={`text-xs text-right truncate max-w-[130px] ${mono ? 'font-mono text-mdb-green' : 'text-gray-300'}`}>
         {String(value)}
       </span>
     </div>
@@ -40,27 +27,19 @@ function InfoRow({
 }
 
 const STATE_COLOR: Record<string, string> = {
-  IDLE:     'text-mdb-green',
-  CREATING: 'text-yellow-400',
-  UPDATING: 'text-yellow-400',
-  REPAIRING:'text-orange-400',
-  DELETING: 'text-red-400',
+  IDLE:      'text-mdb-green',
+  CREATING:  'text-yellow-400',
+  UPDATING:  'text-yellow-400',
+  REPAIRING: 'text-orange-400',
+  DELETING:  'text-red-400',
 };
 
 export default function TopologyPanel({
-  config,
-  clusterInfo,
-  processes,
-  processesLoading,
-  loading,
-  error,
-  onRefresh,
-  activeScenario,
-  workloadStatus,
+  config, clusterInfo, processes, processesLoading, loading, error, onRefresh, onPrimaryChange,
 }: Props) {
-  const stateName    = (clusterInfo?.stateName as string) ?? null;
+  const stateName    = (clusterInfo?.stateName    as string) ?? null;
   const mongoVersion = (clusterInfo?.mongoDBVersion as string) ?? null;
-  const clusterType  = (clusterInfo?.clusterType as string) ?? null;
+  const clusterType  = (clusterInfo?.clusterType  as string) ?? null;
   const stateColor   = STATE_COLOR[stateName ?? ''] ?? 'text-gray-400';
 
   return (
@@ -85,33 +64,29 @@ export default function TopologyPanel({
 
       {/* Static config */}
       <div className="space-y-0.5 border-b border-white/[0.05] pb-2">
-        <InfoRow label="Project ID" value={config?.atlasProjectId} mono />
-        <InfoRow label="Cluster"    value={config?.atlasClusterName} />
-        <InfoRow label="Database"   value={config?.mongoDbName} mono />
-        <InfoRow label="Collection" value={config?.collectionName} mono />
+        <InfoRow label="Project ID"  value={config?.atlasProjectId}    mono />
+        <InfoRow label="Cluster"     value={config?.atlasClusterName} />
+        <InfoRow label="Database"    value={config?.mongoDbName}        mono />
+        <InfoRow label="Collection"  value={config?.collectionName}     mono />
       </div>
 
       {/* Live cluster state */}
       {error ? (
-        <div className="text-xs text-red-400 bg-red-950/60 border border-red-900/50 rounded p-2">
-          {error}
-        </div>
+        <div className="text-xs text-red-400 bg-red-950/60 border border-red-900/50 rounded p-2">{error}</div>
       ) : loading && !clusterInfo ? (
         <div className="text-xs text-gray-600 animate-pulse">Loading cluster…</div>
       ) : clusterInfo ? (
         <div className="space-y-0.5 border-b border-white/[0.05] pb-2">
           <div className="flex justify-between items-center py-1">
             <span className="text-xs text-gray-500">State</span>
-            <span className={`text-xs font-semibold font-display ${stateColor}`}>
-              {stateName ?? 'UNKNOWN'}
-            </span>
+            <span className={`text-xs font-semibold font-display ${stateColor}`}>{stateName ?? 'UNKNOWN'}</span>
           </div>
           <InfoRow label="Type"    value={clusterType} />
           <InfoRow label="Version" value={mongoVersion} />
         </div>
       ) : null}
 
-      {/* ── Node Topology ── */}
+      {/* Replica set topology */}
       <div className="space-y-2">
         <div className="flex items-center gap-1.5">
           <Network className="w-3 h-3 text-gray-600" />
@@ -119,39 +94,7 @@ export default function TopologyPanel({
             Replica Set
           </span>
         </div>
-        <TopologyMap processes={processes} loading={processesLoading} />
-      </div>
-
-      {/* Scenario status */}
-      <div className="border-t border-white/[0.05] pt-2">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <Activity className="w-3 h-3 text-gray-600" />
-          <span className="text-[10px] font-display font-semibold text-gray-500 uppercase tracking-[0.12em]">
-            Scenario
-          </span>
-        </div>
-        {activeScenario ? (
-          <div className="space-y-1">
-            <div
-              className={`text-xs px-2 py-1 rounded font-medium font-display ${
-                workloadStatus === 'running'
-                  ? 'bg-mdb-green/20 text-mdb-green'
-                  : workloadStatus === 'stopping'
-                  ? 'bg-yellow-500/20 text-yellow-400'
-                  : workloadStatus === 'error'
-                  ? 'bg-red-900/40 text-red-400'
-                  : 'bg-white/[0.04] text-gray-500'
-              }`}
-            >
-              {workloadStatus?.toUpperCase() ?? 'IDLE'}
-            </div>
-            <p className="text-[10px] text-gray-600 font-mono truncate">
-              {activeScenario.slice(0, 16)}…
-            </p>
-          </div>
-        ) : (
-          <p className="text-[10px] text-gray-700">No active scenario</p>
-        )}
+        <TopologyMap processes={processes} loading={processesLoading} onPrimaryChange={onPrimaryChange} />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import type { AtlasProcess } from '../hooks/useAtlas';
 interface Props {
   processes: AtlasProcess[];
   loading: boolean;
+  onPrimaryChange?: () => void;
 }
 
 type Role = 'PRIMARY' | 'SECONDARY' | 'RECOVERING' | 'OTHER';
@@ -128,7 +129,7 @@ function SkeletonCard({ delay }: { delay: number }) {
   );
 }
 
-export default function TopologyMap({ processes, loading }: Props) {
+export default function TopologyMap({ processes, loading, onPrimaryChange }: Props) {
   const prevPrimaryIdRef = useRef<string | null>(null);
   const [newPrimaryId, setNewPrimaryId] = useState<string | null>(null);
 
@@ -153,16 +154,20 @@ export default function TopologyMap({ processes, loading }: Props) {
 
   const primaryProcess = activeNodes.find((p) => deriveRole(p.typeName) === 'PRIMARY');
 
-  // Detect primary change and trigger flash
+  // Detect primary change → flash the new node + notify parent to burst-refresh.
+  // prevPrimaryIdRef must be updated inside the if-block too; the assignment
+  // after the return is unreachable when a change is detected.
   useEffect(() => {
     if (!primaryProcess) return;
     if (prevPrimaryIdRef.current && prevPrimaryIdRef.current !== primaryProcess.id) {
+      prevPrimaryIdRef.current = primaryProcess.id;
       setNewPrimaryId(primaryProcess.id);
+      onPrimaryChange?.();
       const t = setTimeout(() => setNewPrimaryId(null), 2000);
       return () => clearTimeout(t);
     }
     prevPrimaryIdRef.current = primaryProcess.id;
-  }, [primaryProcess]);
+  }, [primaryProcess, onPrimaryChange]);
 
   // Sort: PRIMARY first, then SECONDARY, then RECOVERING
   const sorted = [...activeNodes].sort((a, b) => {
