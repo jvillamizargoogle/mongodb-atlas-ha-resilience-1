@@ -184,14 +184,39 @@ export interface AtlasProcess {
   typeName: string;
   version: string;
   replicaSetName?: string;
+  userAlias?: string;
+}
+
+export async function resumeCluster(): Promise<Record<string, unknown>> {
+  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
+  if (!projectId || !clusterName) {
+    throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
+  }
+  return atlasRequest<Record<string, unknown>>(
+    'PATCH',
+    `/groups/${projectId}/clusters/${clusterName}`,
+    { paused: false }
+  );
 }
 
 export async function getProcesses(): Promise<AtlasProcess[]> {
   const projectId = config.ATLAS_PROJECT_ID;
+  const clusterName = config.ATLAS_CLUSTER_NAME;
   if (!projectId) throw new Error('ATLAS_PROJECT_ID must be configured.');
   const result = await atlasRequest<{ results: AtlasProcess[] }>(
     'GET',
     `/groups/${projectId}/processes`
   );
-  return result.results ?? [];
+  const all = result.results ?? [];
+  // A project can contain multiple clusters. Filter to only our cluster using
+  // userAlias, which Atlas sets to "<clusterName>-shard-00-XX.<host>".
+  // Falls back to all processes if nothing matches (prevents empty topology).
+  if (clusterName) {
+    const prefix = clusterName.toLowerCase();
+    const filtered = all.filter(p =>
+      (p.userAlias ?? p.hostname).toLowerCase().startsWith(prefix)
+    );
+    if (filtered.length > 0) return filtered;
+  }
+  return all;
 }

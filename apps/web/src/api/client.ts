@@ -35,6 +35,9 @@ export const api = {
   processes: () =>
     request<Record<string, unknown>[]>('GET', '/atlas/processes'),
 
+  resumeCluster: () =>
+    request<void>('POST', '/atlas/resume'),
+
   triggerFailover: (confirmed: boolean) =>
     request<void>('POST', '/atlas/failover', { confirmed }),
 

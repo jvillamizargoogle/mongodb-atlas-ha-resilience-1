@@ -71,6 +71,15 @@ const outageStartSchema = z.object({
   regionName: z.string().min(1, 'regionName is required'),
 });
 
+router.post('/resume', async (_req, res) => {
+  try {
+    await atlasService.resumeCluster();
+    res.json({ success: true, message: 'Cluster resume initiated. It may take a few minutes to become available.' });
+  } catch (err) {
+    res.status(503).json({ success: false, error: sanitize(err) });
+  }
+});
+
 router.post('/outage/start', async (req, res) => {
   const parse = outageStartSchema.safeParse(req.body);
   if (!parse.success) {

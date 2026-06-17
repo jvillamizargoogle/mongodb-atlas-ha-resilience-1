@@ -107,5 +107,15 @@ export function useAtlas() {
     };
   }, [fetchConfig, fetchCluster, fetchProcesses, scheduleProcess]);
 
-  return { ...state, refresh: fetchCluster, startBurstRefresh };
+  const resumeCluster = useCallback(async () => {
+    const res = await api.resumeCluster();
+    if (res.success) {
+      // Cluster takes ~2 min to wake; start polling every 5 s so the banner
+      // disappears automatically once paused flips to false.
+      startBurstRefresh();
+    }
+    return res;
+  }, [startBurstRefresh]);
+
+  return { ...state, refresh: fetchCluster, startBurstRefresh, resumeCluster };
 }

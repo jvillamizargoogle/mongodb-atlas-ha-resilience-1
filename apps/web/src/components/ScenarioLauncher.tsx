@@ -26,6 +26,7 @@ interface Props {
   isRunning:            boolean;
   workloadType?:        WorkloadType | null;
   clusterState?:        string | null;
+  clusterPaused?:       boolean;
   defaultOutageProvider?: string;
   defaultOutageRegion?:   string;
   // Read preference lifted to App so FailoverExplainer can read it too
@@ -88,6 +89,7 @@ export default function ScenarioLauncher({
   isRunning,
   workloadType,
   clusterState,
+  clusterPaused = false,
   defaultOutageProvider,
   defaultOutageRegion,
   readPref,
@@ -270,12 +272,13 @@ export default function ScenarioLauncher({
       <div className="space-y-1">
         {(Object.entries(WORKLOAD_META) as [keyof typeof WORKLOAD_META, typeof WORKLOAD_META[keyof typeof WORKLOAD_META]][]).map(([type, meta]) => {
           const isLive     = effectivelyRunning && workloadType === type;
-          const isDisabled = (effectivelyRunning && !isLive) || loading;
+          const isDisabled = (effectivelyRunning && !isLive) || loading || clusterPaused;
           return (
             <button
               key={type}
               disabled={isDisabled || isLive}
               onClick={() => startWorkload(type)}
+              title={clusterPaused ? 'Resume the cluster before starting a workload' : undefined}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-medium ${SPRING} disabled:cursor-not-allowed ${
                 isLive
                   ? `${meta.live} cursor-default`

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useSSE } from './hooks/useSSE';
 import { useAtlas } from './hooks/useAtlas';
+import ClusterPausedBanner from './components/ClusterPausedBanner';
 import TopologyPanel from './components/TopologyPanel';
 import ScenarioLauncher from './components/ScenarioLauncher';
 import Terminal from './components/Terminal';
@@ -24,7 +25,7 @@ const FAILOVER_RECENT_MS = 5 * 60 * 1000; // 5 min
 
 export default function App() {
   const { connected, terminalEvents, metrics, clearTerminal } = useSSE();
-  const { config, clusterInfo, processes, processesLoading, loading, error, refresh, startBurstRefresh } = useAtlas();
+  const { config, clusterInfo, processes, processesLoading, loading, error, refresh, startBurstRefresh, resumeCluster } = useAtlas();
 
   const [activeScenario,   setActiveScenario]   = useState<string | null>(null);
   const [toast,            setToast]            = useState<Toast | null>(null);
@@ -46,6 +47,7 @@ export default function App() {
   const isRunning       = metrics?.workloadStatus === 'running';
   const workloadType    = metrics?.workloadType ?? null;
   const recentFailover  = lastFailoverAt !== null && Date.now() - lastFailoverAt < FAILOVER_RECENT_MS;
+  const clusterPaused   = clusterInfo?.paused === true;
 
   // Derive live provider/region from Atlas API replicationSpecs → providerSettings fallback.
   // Raw values (AWS / US_EAST_1) are used for outage simulation API calls.
@@ -109,6 +111,15 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Cluster Paused Banner ── */}
+      <ClusterPausedBanner
+        paused={clusterPaused}
+        controlPlaneEnabled={config?.atlasControlPlaneEnabled ?? false}
+        onResume={resumeCluster}
+        onToast={showToast}
+        onRefreshStart={startBurstRefresh}
+      />
+
       {/* ── Main layout ── */}
       <div className="flex flex-1 overflow-hidden">
 
@@ -136,6 +147,7 @@ export default function App() {
                   isRunning={isRunning}
                   workloadType={workloadType}
                   clusterState={clusterInfo?.stateName as string | null | undefined}
+                  clusterPaused={clusterPaused}
                   defaultOutageProvider={rawAtlasProvider ?? undefined}
                   defaultOutageRegion={rawAtlasRegion ?? undefined}
                   readPref={readPref}
