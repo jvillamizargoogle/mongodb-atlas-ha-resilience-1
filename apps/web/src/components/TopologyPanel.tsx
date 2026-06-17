@@ -1,7 +1,15 @@
 import { RefreshCw, Database, Network } from 'lucide-react';
+import { useMemo } from 'react';
 import type { PublicConfig } from '@atlas-demo/shared';
 import type { AtlasProcess } from '../hooks/useAtlas';
 import TopologyMap from './TopologyMap';
+
+const PROVIDER_CHIP: Record<string, { text: string; dot: string }> = {
+  aws:   { text: 'text-orange-400', dot: 'bg-orange-400' },
+  gcp:   { text: 'text-blue-400',   dot: 'bg-blue-400'   },
+  azure: { text: 'text-sky-400',    dot: 'bg-sky-400'    },
+};
+const DEFAULT_CHIP = { text: 'text-gray-400', dot: 'bg-gray-600' };
 
 interface Props {
   config:           PublicConfig | null;
@@ -41,6 +49,30 @@ export default function TopologyPanel({
   const mongoVersion = (clusterInfo?.mongoDBVersion as string) ?? null;
   const clusterType  = (clusterInfo?.clusterType  as string) ?? null;
   const stateColor   = STATE_COLOR[stateName ?? ''] ?? 'text-gray-400';
+
+  // Extract electable regions from replicationSpecs, sorted by priority desc.
+  // priority 7 = Atlas-preferred primary region.
+  const clusterRegions = useMemo((): Array<{ provider: string; region: string; priority: number }> => {
+    const specs = clusterInfo?.replicationSpecs as Array<Record<string, unknown>> | undefined;
+    if (!specs) return [];
+    const out: Array<{ provider: string; region: string; priority: number }> = [];
+    for (const spec of specs) {
+      const rcs = spec.regionConfigs as Array<Record<string, unknown>> | undefined;
+      if (!rcs) continue;
+      for (const rc of rcs) {
+        const electable = rc.electableSpecs as Record<string, unknown> | undefined;
+        if (!((electable?.nodeCount as number) > 0)) continue;
+        out.push({
+          provider: (rc.providerName as string) ?? '',
+          region:   (rc.regionName  as string) ?? '',
+          priority: (rc.priority    as number) ?? 0,
+        });
+      }
+    }
+    return out.sort((a, b) => b.priority - a.priority);
+  }, [clusterInfo]);
+
+  const primaryRegion = clusterRegions[0];
 
   return (
     <div className="p-3 space-y-3">
@@ -83,6 +115,26 @@ export default function TopologyPanel({
           </div>
           <InfoRow label="Type"    value={clusterType} />
           <InfoRow label="Version" value={mongoVersion} />
+
+          {/* Cloud regions derived from replicationSpecs */}
+          {clusterRegions.length > 0 && (
+            <div className="pt-1 space-y-1">
+              {clusterRegions.map(r => {
+                const chip = PROVIDER_CHIP[r.provider.toLowerCase()] ?? DEFAULT_CHIP;
+                return (
+                  <div key={`${r.provider}||${r.region}`} className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${chip.dot}`} />
+                    <span className={`text-[9px] font-mono flex-1 ${chip.text}`}>
+                      {r.provider} · {r.region.toLowerCase().replace(/_/g, '-')}
+                    </span>
+                    {r.priority === 7 && (
+                      <span className="text-[8px] text-mdb-green font-display font-semibold">★</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -94,7 +146,12 @@ export default function TopologyPanel({
             Replica Set
           </span>
         </div>
-        <TopologyMap processes={processes} loading={processesLoading} onPrimaryChange={onPrimaryChange} />
+        <TopologyMap
+          processes={processes}
+          loading={processesLoading}
+          onPrimaryChange={onPrimaryChange}
+          primaryRegion={primaryRegion}
+        />
       </div>
     </div>
   );

@@ -1,11 +1,21 @@
 import { useRef, useEffect, useState } from 'react';
 import type { AtlasProcess } from '../hooks/useAtlas';
 
+interface RegionInfo { provider: string; region: string; }
+
 interface Props {
   processes: AtlasProcess[];
   loading: boolean;
   onPrimaryChange?: () => void;
+  primaryRegion?: RegionInfo;
 }
+
+const PROVIDER_CHIP: Record<string, { text: string; dot: string }> = {
+  aws:   { text: 'text-orange-400', dot: 'bg-orange-400' },
+  gcp:   { text: 'text-blue-400',   dot: 'bg-blue-400'   },
+  azure: { text: 'text-sky-400',    dot: 'bg-sky-400'    },
+};
+const DEFAULT_CHIP = { text: 'text-gray-500', dot: 'bg-gray-600' };
 
 type Role = 'PRIMARY' | 'SECONDARY' | 'RECOVERING' | 'OTHER';
 
@@ -70,14 +80,17 @@ function NodeCard({
   process,
   isNewPrimary,
   enterDelay,
+  region,
 }: {
   process: AtlasProcess;
   isNewPrimary: boolean;
   enterDelay: number;
+  region?: RegionInfo;
 }) {
   const role = deriveRole(process.typeName);
   const style = ROLE_STYLE[role];
   const host = shortHost(process.hostname);
+  const chip = region ? (PROVIDER_CHIP[region.provider.toLowerCase()] ?? DEFAULT_CHIP) : null;
 
   return (
     <div
@@ -106,6 +119,16 @@ function NodeCard({
             v{process.version}
           </p>
         )}
+
+        {/* Provider + region — shown only on PRIMARY (highest-priority region from Atlas) */}
+        {chip && region && (
+          <div className={`flex items-center gap-1 mt-1.5 ${chip.text}`}>
+            <span className={`w-1 h-1 rounded-full shrink-0 ${chip.dot}`} />
+            <span className="text-[8px] font-mono leading-none">
+              {region.provider} · {region.region.toLowerCase().replace(/_/g, '-')}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -129,7 +152,7 @@ function SkeletonCard({ delay }: { delay: number }) {
   );
 }
 
-export default function TopologyMap({ processes, loading, onPrimaryChange }: Props) {
+export default function TopologyMap({ processes, loading, onPrimaryChange, primaryRegion }: Props) {
   const prevPrimaryIdRef = useRef<string | null>(null);
   const [newPrimaryId, setNewPrimaryId] = useState<string | null>(null);
 
@@ -196,6 +219,7 @@ export default function TopologyMap({ processes, loading, onPrimaryChange }: Pro
             process={p}
             isNewPrimary={p.id === newPrimaryId}
             enterDelay={i * 50}
+            region={deriveRole(p.typeName) === 'PRIMARY' ? primaryRegion : undefined}
           />
         ))
       )}
