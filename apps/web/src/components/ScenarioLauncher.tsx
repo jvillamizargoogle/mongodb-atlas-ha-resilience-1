@@ -321,11 +321,6 @@ export default function ScenarioLauncher({
             );
           })}
         </div>
-        {readPref === 'secondaryPreferred' && (
-          <p className="text-[9px] text-blue-400/70 px-0.5 leading-tight">
-            Reads survive primary elections with zero interruption
-          </p>
-        )}
       </div>
 
       {/* ── Workload buttons ── */}

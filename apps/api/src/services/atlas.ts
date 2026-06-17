@@ -152,13 +152,12 @@ export async function startOutage(
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
-  // type: "REGION" simulates an outage for all nodes in the named region,
-  // regardless of cloud provider. This is what the API requires — omitting
-  // `type` causes UNEXPECTED_ERROR even if cloudProvider and regionName are set.
+  // Atlas requires all three fields: type, cloudProvider, and regionName.
+  // Omitting `type` causes UNEXPECTED_ERROR; omitting cloudProvider also fails.
   return atlasRequest<Record<string, unknown>>(
     'POST',
     `/groups/${projectId}/clusters/${clusterName}/outageSimulation`,
-    { outageFilters: [{ type: 'REGION', regionName }] }
+    { outageFilters: [{ type: 'REGION', cloudProvider: providerName, regionName }] }
   );
 }
 
