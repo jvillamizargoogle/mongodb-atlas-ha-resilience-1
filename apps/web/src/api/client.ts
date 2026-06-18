@@ -33,7 +33,9 @@ export const api = {
     request<Record<string, unknown>>('GET', '/atlas/topology'),
 
   processes: () =>
-    request<Record<string, unknown>[]>('GET', '/atlas/processes'),
+    request<Record<string, unknown>[]>('GET', '/atlas/processes') as Promise<
+      import('@atlas-demo/shared').ApiResponse<Record<string, unknown>[]> & { driverPrimary?: string | null }
+    >,
 
   resumeCluster: () =>
     request<void>('POST', '/atlas/resume'),

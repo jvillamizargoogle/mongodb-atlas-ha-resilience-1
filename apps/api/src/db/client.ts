@@ -9,6 +9,21 @@ export function getConnectionStatus(): ConnectionStatus {
   return connectionStatus;
 }
 
+// Returns the hostname:port of the node the driver currently considers RSPrimary,
+// or null when the topology hasn't been discovered yet or has no primary.
+export function getDriverPrimary(): string | null {
+  try {
+    const servers = client?.topology?.description?.servers;
+    if (!servers) return null;
+    for (const [address, desc] of servers) {
+      if ((desc as { type?: string }).type === 'RSPrimary') return address;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getClient(): Promise<MongoClient> {
   if (client) return client;
 

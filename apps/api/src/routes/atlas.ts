@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import * as atlasService from '../services/atlas';
+import { getDriverPrimary } from '../db/client';
 import { metricsTracker } from '../services/metrics';
 import { eventBus } from '../services/eventBus';
 import { v4 as uuidv4 } from 'uuid';
@@ -142,7 +143,9 @@ router.post('/outage/end', async (_req, res) => {
 router.get('/processes', async (_req, res) => {
   try {
     const data = await atlasService.getProcesses();
-    res.json({ success: true, data });
+    // Include the driver's live SDAM view of the primary so the UI can
+    // override stale Atlas API data during outage/failover windows.
+    res.json({ success: true, data, driverPrimary: getDriverPrimary() });
   } catch (err) {
     res.status(503).json({ success: false, error: sanitize(err) });
   }

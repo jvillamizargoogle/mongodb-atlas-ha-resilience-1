@@ -15,6 +15,7 @@ interface Props {
   config:           PublicConfig | null;
   clusterInfo:      Record<string, unknown> | null;
   processes:        AtlasProcess[];
+  driverPrimary?:   string | null;
   processesLoading: boolean;
   loading:          boolean;
   error:            string | null;
@@ -43,7 +44,7 @@ const STATE_COLOR: Record<string, string> = {
 };
 
 export default function TopologyPanel({
-  config, clusterInfo, processes, processesLoading, loading, error, onRefresh, onPrimaryChange,
+  config, clusterInfo, processes, driverPrimary, processesLoading, loading, error, onRefresh, onPrimaryChange,
 }: Props) {
   const stateName    = (clusterInfo?.stateName    as string) ?? null;
   const mongoVersion = (clusterInfo?.mongoDBVersion as string) ?? null;
@@ -146,6 +147,7 @@ export default function TopologyPanel({
         </div>
         <TopologyMap
           processes={processes}
+          driverPrimary={driverPrimary}
           loading={processesLoading}
           onPrimaryChange={onPrimaryChange}
         />

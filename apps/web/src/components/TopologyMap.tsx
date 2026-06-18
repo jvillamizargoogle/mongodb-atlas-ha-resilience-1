@@ -8,6 +8,7 @@ interface Props {
   loading: boolean;
   onPrimaryChange?: () => void;
   primaryRegion?: RegionInfo;
+  driverPrimary?: string | null;
 }
 
 const PROVIDER_CHIP: Record<string, { text: string; dot: string }> = {
@@ -24,6 +25,17 @@ function deriveRole(typeName: string): Role {
   if (typeName.includes('SECONDARY')) return 'SECONDARY';
   if (typeName === 'RECOVERING') return 'RECOVERING';
   return 'OTHER';
+}
+
+// If the driver's live SDAM knows who the real primary is, demote any node that
+// Atlas API still labels as PRIMARY but doesn't match — Atlas can lag 30–120 s
+// after a regional failover or outage simulation.
+function resolvedRole(process: AtlasProcess, driverPrimary: string | null | undefined): Role {
+  const atlasRole = deriveRole(process.typeName);
+  if (atlasRole === 'PRIMARY' && driverPrimary && process.id !== driverPrimary) {
+    return 'RECOVERING';
+  }
+  return atlasRole;
 }
 
 // Trim "cluster0-shard-00-00.xxxxx.mongodb.net" → "shard-00-00"
@@ -78,16 +90,17 @@ const ROLE_STYLE: Record<Role, {
 
 function NodeCard({
   process,
+  role,
   isNewPrimary,
   enterDelay,
   region,
 }: {
   process: AtlasProcess;
+  role: Role;
   isNewPrimary: boolean;
   enterDelay: number;
   region?: RegionInfo;
 }) {
-  const role = deriveRole(process.typeName);
   const style = ROLE_STYLE[role];
   const host = shortHost(process.hostname);
   const chip = region ? (PROVIDER_CHIP[region.provider.toLowerCase()] ?? DEFAULT_CHIP) : null;
@@ -152,7 +165,7 @@ function SkeletonCard({ delay }: { delay: number }) {
   );
 }
 
-export default function TopologyMap({ processes, loading, onPrimaryChange, primaryRegion }: Props) {
+export default function TopologyMap({ processes, loading, onPrimaryChange, primaryRegion, driverPrimary }: Props) {
   const prevPrimaryIdRef = useRef<string | null>(null);
   const [newPrimaryId, setNewPrimaryId] = useState<string | null>(null);
 
@@ -168,18 +181,22 @@ export default function TopologyMap({ processes, loading, onPrimaryChange, prima
       g.push(p);
       groups.set(key, g);
     }
-    // Prefer the group that contains a PRIMARY; fall back to the largest group.
+    // Prefer the group containing the driver's live primary; fall back to the
+    // group Atlas API calls PRIMARY; then to the largest group.
+    if (driverPrimary) {
+      for (const group of groups.values()) {
+        if (group.some((p) => p.id === driverPrimary)) return group;
+      }
+    }
     for (const group of groups.values()) {
       if (group.some((p) => deriveRole(p.typeName) === 'PRIMARY')) return group;
     }
     return [...groups.values()].sort((a, b) => b.length - a.length)[0] ?? [];
   })();
 
-  const primaryProcess = activeNodes.find((p) => deriveRole(p.typeName) === 'PRIMARY');
+  const primaryProcess = activeNodes.find((p) => resolvedRole(p, driverPrimary) === 'PRIMARY');
 
   // Detect primary change → flash the new node + notify parent to burst-refresh.
-  // prevPrimaryIdRef must be updated inside the if-block too; the assignment
-  // after the return is unreachable when a change is detected.
   useEffect(() => {
     if (!primaryProcess) return;
     if (prevPrimaryIdRef.current && prevPrimaryIdRef.current !== primaryProcess.id) {
@@ -195,7 +212,7 @@ export default function TopologyMap({ processes, loading, onPrimaryChange, prima
   // Sort: PRIMARY first, then SECONDARY, then RECOVERING
   const sorted = [...activeNodes].sort((a, b) => {
     const order: Record<Role, number> = { PRIMARY: 0, SECONDARY: 1, RECOVERING: 2, OTHER: 3 };
-    return order[deriveRole(a.typeName)] - order[deriveRole(b.typeName)];
+    return order[resolvedRole(a, driverPrimary)] - order[resolvedRole(b, driverPrimary)];
   });
 
   const showSkeleton = loading && processes.length === 0;
@@ -213,15 +230,19 @@ export default function TopologyMap({ processes, loading, onPrimaryChange, prima
           Atlas control plane required
         </p>
       ) : (
-        sorted.map((p, i) => (
-          <NodeCard
-            key={p.id}
-            process={p}
-            isNewPrimary={p.id === newPrimaryId}
-            enterDelay={i * 50}
-            region={deriveRole(p.typeName) === 'PRIMARY' ? primaryRegion : undefined}
-          />
-        ))
+        sorted.map((p, i) => {
+          const role = resolvedRole(p, driverPrimary);
+          return (
+            <NodeCard
+              key={p.id}
+              process={p}
+              role={role}
+              isNewPrimary={p.id === newPrimaryId}
+              enterDelay={i * 50}
+              region={role === 'PRIMARY' ? primaryRegion : undefined}
+            />
+          );
+        })
       )}
     </div>
   );

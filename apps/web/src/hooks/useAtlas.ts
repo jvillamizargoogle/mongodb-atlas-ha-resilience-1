@@ -15,6 +15,7 @@ interface AtlasState {
   config: PublicConfig | null;
   clusterInfo: Record<string, unknown> | null;
   processes: AtlasProcess[];
+  driverPrimary: string | null;
   processesLoading: boolean;
   loading: boolean;
   error: string | null;
@@ -29,6 +30,7 @@ export function useAtlas() {
     config: null,
     clusterInfo: null,
     processes: [],
+    driverPrimary: null,
     processesLoading: true,
     loading: true,
     error: null,
@@ -62,7 +64,12 @@ export function useAtlas() {
   const fetchProcesses = useCallback(async () => {
     const res = await api.processes();
     if (res.success) {
-      setState((s) => ({ ...s, processes: (res.data ?? []) as unknown as AtlasProcess[], processesLoading: false }));
+      setState((s) => ({
+        ...s,
+        processes: (res.data ?? []) as unknown as AtlasProcess[],
+        driverPrimary: res.driverPrimary ?? null,
+        processesLoading: false,
+      }));
     } else {
       setState((s) => ({ ...s, processesLoading: false }));
     }

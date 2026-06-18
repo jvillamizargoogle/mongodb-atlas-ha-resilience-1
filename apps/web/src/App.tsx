@@ -25,7 +25,7 @@ const FAILOVER_RECENT_MS = 5 * 60 * 1000; // 5 min
 
 export default function App() {
   const { connected, terminalEvents, csEvents, metrics, clearTerminal } = useSSE();
-  const { config, clusterInfo, processes, processesLoading, loading, error, refresh, startBurstRefresh, resumeCluster } = useAtlas();
+  const { config, clusterInfo, processes, driverPrimary, processesLoading, loading, error, refresh, startBurstRefresh, resumeCluster } = useAtlas();
 
   const [activeScenario,   setActiveScenario]   = useState<string | null>(null);
   const [toast,            setToast]            = useState<Toast | null>(null);
@@ -153,6 +153,7 @@ export default function App() {
                 config={config}
                 clusterInfo={clusterInfo}
                 processes={processes}
+                driverPrimary={driverPrimary}
                 processesLoading={processesLoading}
                 loading={loading}
                 error={error}
