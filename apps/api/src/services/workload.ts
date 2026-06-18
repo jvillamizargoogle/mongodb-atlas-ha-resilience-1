@@ -57,6 +57,26 @@ function buildDoc(scenarioId: string, opId: string, opType: string) {
   };
 }
 
+// Returns " id=shard-00-XX[P]" or " id=shard-00-XX[S]" by running a lightweight
+// hello command against the same node that will serve the next operation.
+// Runs in parallel with the actual DB operation so it doesn't inflate latency.
+// Returns '' on any error or when no result is needed (odd iterations).
+async function probeNode(
+  collection: ReturnType<typeof getCollection>,
+  rp?: import('mongodb').ReadPreference,
+): Promise<string> {
+  try {
+    const opts = rp ? { readPreference: rp } : {};
+    const hello = await collection.db.command({ hello: 1 }, opts);
+    const me = (hello.me as string | undefined) ?? '';
+    const shard = me.match(/shard-\d{2}-\d{2}/)?.[0] ?? me.split(':')[0]?.split('.')[0] ?? '?';
+    const role = (hello.isWritablePrimary === true || hello.ismaster === true) ? 'P' : 'S';
+    return ` id=${shard}[${role}]`;
+  } catch {
+    return '';
+  }
+}
+
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise<void>((resolve) => {
     if (signal?.aborted) {
@@ -75,19 +95,24 @@ async function runWriteLoop(scenarioId: string, cfg: WorkloadConfig, signal: Abo
   const collection = getCollection();
   const writeConcernOpts = wc(cfg);
   const interval = cfg.intervalMs ?? config.DEFAULT_WORKLOAD_INTERVAL_MS;
+  let serverNote = '';
+  let iteration = 0;
 
   while (!signal.aborted) {
     const opId = uuidv4();
     const doc = buildDoc(scenarioId, opId, 'write');
     const start = Date.now();
     try {
+      const probePromise = iteration % 5 === 0 ? probeNode(collection) : Promise.resolve('');
       const result = await collection.insertOne(doc, writeConcernOpts);
       const latencyMs = Date.now() - start;
       metricsTracker.recordOp('write', latencyMs, true);
+      const note = await probePromise;
+      if (note) serverNote = note;
       emit({
         type: 'write',
         status: 'success',
-        message: `INSERT acknowledged seq=${doc.sequence}`,
+        message: `INSERT ok seq=${doc.sequence}${serverNote}`,
         latencyMs,
         documentId: result.insertedId.toString(),
         region: config.APP_REGION,
@@ -98,6 +123,7 @@ async function runWriteLoop(scenarioId: string, cfg: WorkloadConfig, signal: Abo
       const msg = err instanceof Error ? err.message : String(err);
       emit({ type: 'error', status: 'failure', message: `INSERT failed: ${msg}`, latencyMs, region: config.APP_REGION });
     }
+    iteration++;
     emitMetrics();
     await sleep(interval, signal);
   }
@@ -113,11 +139,7 @@ async function runReadLoop(_scenarioId: string, cfg: WorkloadConfig, signal: Abo
   while (!signal.aborted) {
     const start = Date.now();
     try {
-      // Every 5th iteration, probe which physical node is serving reads (runs in parallel
-      // with the find so it doesn't inflate latencyMs). Shows Primary vs Secondary routing.
-      const probePromise = iteration % 5 === 0
-        ? collection.db.command({ hello: 1 }, { readPreference: rp }).catch(() => null)
-        : Promise.resolve(null);
+      const probePromise = iteration % 5 === 0 ? probeNode(collection, rp) : Promise.resolve('');
 
       const docs = await collection
         .find({}, { readPreference: rp })
@@ -127,13 +149,8 @@ async function runReadLoop(_scenarioId: string, cfg: WorkloadConfig, signal: Abo
       const latencyMs = Date.now() - start;
       metricsTracker.recordOp('read', latencyMs, true);
 
-      const hello = await probePromise;
-      if (hello) {
-        const me = (hello.me as string | undefined) ?? '';
-        const shard = me.match(/shard-\d{2}-\d{2}/)?.[0] ?? me.split(':')[0]?.split('.')[0] ?? '?';
-        const role = (hello.isWritablePrimary === true || hello.ismaster === true) ? 'P' : 'S';
-        serverNote = ` id=${shard}[${role}]`;
-      }
+      const note = await probePromise;
+      if (note) serverNote = note;
 
       emit({
         type: 'read',
@@ -167,10 +184,13 @@ async function runUpdateLoop(scenarioId: string, cfg: WorkloadConfig, signal: Ab
   // Cycle: pending→active then active→pending so matched/modified are always >0
   let fromStatus = 'pending';
   let toStatus   = 'active';
+  let serverNote = '';
+  let iteration = 0;
 
   while (!signal.aborted) {
     const start = Date.now();
     try {
+      const probePromise = iteration % 5 === 0 ? probeNode(collection) : Promise.resolve('');
       const result = await collection.updateMany(
         { scenarioId, status: fromStatus },
         { $set: { status: toStatus, updatedAt: new Date() } },
@@ -189,10 +209,12 @@ async function runUpdateLoop(scenarioId: string, cfg: WorkloadConfig, signal: Ab
 
       const latencyMs = Date.now() - start;
       metricsTracker.recordOp('update', latencyMs, true);
+      const note = await probePromise;
+      if (note) serverNote = note;
       emit({
         type: 'update',
         status: 'success',
-        message: `UPDATE ${fromStatus === 'pending' ? 'active→pending' : 'pending→active'} matched=${result.matchedCount} modified=${result.modifiedCount}`,
+        message: `UPDATE modified=${result.modifiedCount}${serverNote}`,
         latencyMs,
         region: config.APP_REGION,
       });
@@ -202,6 +224,7 @@ async function runUpdateLoop(scenarioId: string, cfg: WorkloadConfig, signal: Ab
       const msg = err instanceof Error ? err.message : String(err);
       emit({ type: 'error', status: 'failure', message: `UPDATE failed: ${msg}`, latencyMs, region: config.APP_REGION });
     }
+    iteration++;
     emitMetrics();
     await sleep(interval, signal);
   }
@@ -213,40 +236,51 @@ async function runMixedLoop(scenarioId: string, cfg: WorkloadConfig, signal: Abo
   const collection = getCollection();
   const writeConcernOpts = wc(cfg);
   const rp = ReadPreference.fromString(cfg.readPreference ?? config.DEFAULT_READ_PREFERENCE);
+  let writeNote = '';
+  let readNote = '';
+  let iteration = 0;
 
   while (!signal.aborted) {
     const roll = Math.random();
     const start = Date.now();
+    const probe = iteration % 5 === 0;
 
     if (roll < ratio) {
-      // Write
+      // Write — always goes to primary
       const opId = uuidv4();
       const doc = buildDoc(scenarioId, opId, 'write');
       try {
+        const probePromise = probe ? probeNode(collection) : Promise.resolve('');
         const result = await collection.insertOne(doc, writeConcernOpts);
         const latencyMs = Date.now() - start;
         metricsTracker.recordOp('write', latencyMs, true);
-        emit({ type: 'write', status: 'success', message: `MIXED INSERT ok seq=${doc.sequence}`, latencyMs, documentId: result.insertedId.toString(), region: config.APP_REGION });
+        const note = await probePromise;
+        if (note) writeNote = note;
+        emit({ type: 'write', status: 'success', message: `MIXED INSERT ok seq=${doc.sequence}${writeNote}`, latencyMs, documentId: result.insertedId.toString(), region: config.APP_REGION });
       } catch (err: unknown) {
         const latencyMs = Date.now() - start;
         metricsTracker.recordOp('write', latencyMs, false);
         emit({ type: 'error', status: 'failure', message: `MIXED INSERT failed: ${err instanceof Error ? err.message : String(err)}`, latencyMs, region: config.APP_REGION });
       }
     } else if (roll < ratio + (1 - ratio) / 2) {
-      // Read
+      // Read — routed by readPreference (may be secondary)
       try {
+        const probePromise = probe ? probeNode(collection, rp) : Promise.resolve('');
         const docs = await collection.find({ scenarioId }, { readPreference: rp }).limit(5).toArray();
         const latencyMs = Date.now() - start;
         metricsTracker.recordOp('read', latencyMs, true);
-        emit({ type: 'read', status: 'success', message: `MIXED FIND ${docs.length} docs`, latencyMs, region: config.APP_REGION });
+        const note = await probePromise;
+        if (note) readNote = note;
+        emit({ type: 'read', status: 'success', message: `MIXED FIND ${docs.length} docs${readNote}`, latencyMs, region: config.APP_REGION });
       } catch (err: unknown) {
         const latencyMs = Date.now() - start;
         metricsTracker.recordOp('read', latencyMs, false);
         emit({ type: 'error', status: 'failure', message: `MIXED FIND failed: ${err instanceof Error ? err.message : String(err)}`, latencyMs, region: config.APP_REGION });
       }
     } else {
-      // Update
+      // Update — always goes to primary
       try {
+        const probePromise = probe ? probeNode(collection) : Promise.resolve('');
         const result = await collection.updateOne(
           { scenarioId },
           { $set: { status: 'mixed', updatedAt: new Date() } },
@@ -254,7 +288,9 @@ async function runMixedLoop(scenarioId: string, cfg: WorkloadConfig, signal: Abo
         );
         const latencyMs = Date.now() - start;
         metricsTracker.recordOp('update', latencyMs, true);
-        emit({ type: 'update', status: 'success', message: `MIXED UPDATE modified=${result.modifiedCount}`, latencyMs, region: config.APP_REGION });
+        const note = await probePromise;
+        if (note) writeNote = note;
+        emit({ type: 'update', status: 'success', message: `MIXED UPDATE modified=${result.modifiedCount}${writeNote}`, latencyMs, region: config.APP_REGION });
       } catch (err: unknown) {
         const latencyMs = Date.now() - start;
         metricsTracker.recordOp('update', latencyMs, false);
@@ -262,6 +298,7 @@ async function runMixedLoop(scenarioId: string, cfg: WorkloadConfig, signal: Abo
       }
     }
 
+    iteration++;
     emitMetrics();
     await sleep(interval, signal);
   }
@@ -272,20 +309,25 @@ async function runBulkLoop(scenarioId: string, cfg: WorkloadConfig, signal: Abor
   const writeConcernOpts = wc(cfg);
   const batchSize = cfg.batchSize ?? 20;
   const interval = cfg.intervalMs ?? config.DEFAULT_WORKLOAD_INTERVAL_MS;
+  let serverNote = '';
+  let iteration = 0;
 
   while (!signal.aborted) {
     const start = Date.now();
     try {
+      const probePromise = iteration % 5 === 0 ? probeNode(collection) : Promise.resolve('');
       const ops = Array.from({ length: batchSize }, () => ({
         insertOne: { document: buildDoc(scenarioId, uuidv4(), 'bulk') },
       }));
       await collection.bulkWrite(ops, writeConcernOpts);
       const latencyMs = Date.now() - start;
       metricsTracker.recordOp('write', latencyMs, true);
+      const note = await probePromise;
+      if (note) serverNote = note;
       emit({
         type: 'bulk',
         status: 'success',
-        message: `BULK_WRITE batch=${batchSize} docs acknowledged`,
+        message: `BULK_WRITE batch=${batchSize}${serverNote}`,
         latencyMs,
         region: config.APP_REGION,
       });
@@ -295,6 +337,7 @@ async function runBulkLoop(scenarioId: string, cfg: WorkloadConfig, signal: Abor
       const msg = err instanceof Error ? err.message : String(err);
       emit({ type: 'error', status: 'failure', message: `BULK_WRITE failed: ${msg}`, latencyMs, region: config.APP_REGION });
     }
+    iteration++;
     emitMetrics();
     await sleep(interval, signal);
   }

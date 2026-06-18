@@ -151,7 +151,7 @@ router.get('/processes', async (_req, res) => {
     // Atlas processes API stores the internal hostname (atlas-29uahz-...) in
     // `id`. Do the comparison here where both are available, then embed a
     // boolean flag per process so the frontend doesn't need to string-match.
-    const annotated = (data as Record<string, unknown>[]).map((proc) => ({
+    const annotated = (data as unknown as Record<string, unknown>[]).map((proc) => ({
       ...proc,
       isDriverPrimary: driverPrimary
         ? `${proc['userAlias']}:${proc['port']}` === driverPrimary
