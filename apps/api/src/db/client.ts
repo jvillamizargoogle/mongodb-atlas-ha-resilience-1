@@ -9,16 +9,15 @@ export function getConnectionStatus(): ConnectionStatus {
   return connectionStatus;
 }
 
-// Returns the hostname:port of the node the driver currently considers RSPrimary,
-// or null when the topology hasn't been discovered yet or has no primary.
-export function getDriverPrimary(): string | null {
+// Returns the hostname:port of the replica set primary as reported by the driver's
+// live `hello` command. More reliable than reading internal SDAM topology state:
+// the `primary` field in the hello response is exactly what the driver uses for
+// write routing, and it updates immediately after an election or failover.
+export async function getDriverPrimary(): Promise<string | null> {
   try {
-    const servers = client?.topology?.description?.servers;
-    if (!servers) return null;
-    for (const [address, desc] of servers) {
-      if ((desc as { type?: string }).type === 'RSPrimary') return address;
-    }
-    return null;
+    if (!client) return null;
+    const result = await client.db().command({ hello: 1 });
+    return (result.primary as string | undefined) ?? null;
   } catch {
     return null;
   }

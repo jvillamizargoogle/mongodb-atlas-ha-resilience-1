@@ -142,10 +142,12 @@ router.post('/outage/end', async (_req, res) => {
 
 router.get('/processes', async (_req, res) => {
   try {
-    const data = await atlasService.getProcesses();
-    // Include the driver's live SDAM view of the primary so the UI can
-    // override stale Atlas API data during outage/failover windows.
-    res.json({ success: true, data, driverPrimary: getDriverPrimary() });
+    // Run in parallel — hello command is lightweight (~1 ms on local network)
+    const [data, driverPrimary] = await Promise.all([
+      atlasService.getProcesses(),
+      getDriverPrimary(),
+    ]);
+    res.json({ success: true, data, driverPrimary });
   } catch (err) {
     res.status(503).json({ success: false, error: sanitize(err) });
   }
