@@ -147,7 +147,17 @@ router.get('/processes', async (_req, res) => {
       atlasService.getProcesses(),
       getDriverPrimary(),
     ]);
-    res.json({ success: true, data, driverPrimary });
+    // The driver connects via userAlias (hackathon-multiregion-...) but the
+    // Atlas processes API stores the internal hostname (atlas-29uahz-...) in
+    // `id`. Do the comparison here where both are available, then embed a
+    // boolean flag per process so the frontend doesn't need to string-match.
+    const annotated = (data as Record<string, unknown>[]).map((proc) => ({
+      ...proc,
+      isDriverPrimary: driverPrimary
+        ? `${proc['userAlias']}:${proc['port']}` === driverPrimary
+        : false,
+    }));
+    res.json({ success: true, data: annotated, driverPrimary });
   } catch (err) {
     res.status(503).json({ success: false, error: sanitize(err) });
   }

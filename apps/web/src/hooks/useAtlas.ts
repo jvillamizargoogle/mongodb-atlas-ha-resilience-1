@@ -5,10 +5,12 @@ import type { PublicConfig } from '@atlas-demo/shared';
 export interface AtlasProcess {
   id: string;
   hostname: string;
+  userAlias?: string;
   port: number;
   typeName: string;
   version: string;
   replicaSetName?: string;
+  isDriverPrimary?: boolean;
 }
 
 interface AtlasState {

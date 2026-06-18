@@ -27,15 +27,15 @@ function deriveRole(typeName: string): Role {
   return 'OTHER';
 }
 
-// Driver SDAM is authoritative over the Atlas processes API, which lags 30–120 s
-// after elections and outage simulations:
-//   • if driver knows the primary and this node IS it → promote to PRIMARY
-//     (covers the case where Atlas processes API still says RECOVERING)
-//   • if driver knows the primary and this node CLAIMS primary but isn't it →
-//     demote to RECOVERING (covers the stale-primary-in-Atlas case)
+// Driver hello command is authoritative over the Atlas processes API (lags 30–120 s).
+// The backend annotates each process with isDriverPrimary after matching against
+// the hello `primary` field using userAlias:port (the internal `id` hostname differs).
+//   • isDriverPrimary=true  → always PRIMARY (even if Atlas says RECOVERING)
+//   • isDriverPrimary=false AND Atlas says PRIMARY → RECOVERING (stale Atlas data)
+//   • no driver data (isDriverPrimary undefined) → trust Atlas typeName
 function resolvedRole(process: AtlasProcess, driverPrimary: string | null | undefined): Role {
-  if (driverPrimary) {
-    if (process.id === driverPrimary) return 'PRIMARY';
+  if (driverPrimary !== null && driverPrimary !== undefined) {
+    if (process.isDriverPrimary) return 'PRIMARY';
     if (deriveRole(process.typeName) === 'PRIMARY') return 'RECOVERING';
   }
   return deriveRole(process.typeName);
