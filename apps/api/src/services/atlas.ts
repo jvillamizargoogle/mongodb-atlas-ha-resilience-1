@@ -205,6 +205,62 @@ export async function resumeCluster(): Promise<Record<string, unknown>> {
   );
 }
 
+// Derives a shard-id → { provider, region } map by combining the ordered process
+// list with the replicationSpecs node counts.
+//
+// Atlas provisions shard numbers sequentially by region in priority order, so:
+//   priority-7 region with 3 nodes → shard-00-00, shard-00-01, shard-00-02
+//   priority-6 region with 2 nodes → shard-00-03, shard-00-04
+//   ...
+//
+// This is an inference — Atlas has no explicit per-process region field — but
+// consistent with how Atlas assigns shard numbers and confirmed by the topology
+// UI which shows the same mapping.
+export function buildNodeRegionMap(
+  processes: AtlasProcess[],
+  clusterInfo: Record<string, unknown>
+): Map<string, { provider: string; region: string }> {
+  const map = new Map<string, { provider: string; region: string }>();
+
+  const specs = clusterInfo['replicationSpecs'] as Array<Record<string, unknown>> | undefined;
+  if (!specs) return map;
+
+  // Collect electable regions sorted by priority (highest first, matching Atlas UI)
+  const regions: Array<{ provider: string; region: string; priority: number; nodeCount: number }> = [];
+  for (const spec of specs) {
+    const rcs = spec['regionConfigs'] as Array<Record<string, unknown>> | undefined;
+    if (!rcs) continue;
+    for (const rc of rcs) {
+      const electable = rc['electableSpecs'] as Record<string, unknown> | undefined;
+      const nodeCount = (electable?.['nodeCount'] as number) ?? 0;
+      if (nodeCount > 0) {
+        regions.push({
+          provider:  (rc['providerName'] as string) ?? '',
+          region:    (rc['regionName']   as string) ?? '',
+          priority:  (rc['priority']     as number) ?? 0,
+          nodeCount,
+        });
+      }
+    }
+  }
+  regions.sort((a, b) => b.priority - a.priority);
+
+  // Expand to a slot-per-node list
+  const slots: Array<{ provider: string; region: string }> = [];
+  for (const r of regions) {
+    for (let i = 0; i < r.nodeCount; i++) slots.push({ provider: r.provider, region: r.region });
+  }
+
+  // Sort processes by hostname (Atlas returns them alphabetically by shard number)
+  const sorted = [...processes].sort((a, b) => a.hostname.localeCompare(b.hostname));
+  sorted.forEach((proc, idx) => {
+    const shardId = (proc.userAlias ?? proc.hostname).match(/shard-\d{2}-\d{2}/)?.[0];
+    if (shardId && slots[idx]) map.set(shardId, slots[idx]);
+  });
+
+  return map;
+}
+
 export async function getProcesses(): Promise<AtlasProcess[]> {
   const projectId = config.ATLAS_PROJECT_ID;
   const clusterName = config.ATLAS_CLUSTER_NAME;

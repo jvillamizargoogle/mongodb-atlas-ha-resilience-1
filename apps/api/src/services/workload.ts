@@ -6,6 +6,7 @@ import { getCollection } from '../db/client';
 import { config } from '../config';
 import { metricsTracker } from './metrics';
 import { eventBus } from './eventBus';
+import { getProcesses, getCluster, buildNodeRegionMap } from './atlas';
 
 function wc(cfg: WorkloadConfig): { writeConcern: { w: W } } {
   return { writeConcern: { w: (cfg.writeConcern ?? config.DEFAULT_WRITE_CONCERN) as W } };
@@ -15,6 +16,7 @@ let abortController: AbortController | null = null;
 let currentScenarioId: string | null = null;
 let currentWorkloadType: WorkloadType | null = null;
 let sequence = 0;
+let nodeRegionMap = new Map<string, { provider: string; region: string }>();
 
 function emit(event: Omit<TerminalEvent, 'id' | 'timestamp'>): void {
   eventBus.broadcast({
@@ -57,10 +59,10 @@ function buildDoc(scenarioId: string, opId: string, opType: string) {
   };
 }
 
-// Returns " id=shard-00-XX[P]" or " id=shard-00-XX[S]" by running a lightweight
-// hello command against the same node that will serve the next operation.
-// Runs in parallel with the actual DB operation so it doesn't inflate latency.
-// Returns '' on any error or when no result is needed (odd iterations).
+// Returns " id=shard-00-XX[PROVIDER·P]" (e.g. " id=shard-00-03[GCP·P]") by running
+// a lightweight hello command against the same node that will serve the next
+// operation. Runs in parallel with the actual DB op so it doesn't inflate latency.
+// Provider comes from nodeRegionMap built at workload start from replicationSpecs.
 async function probeNode(
   collection: ReturnType<typeof getCollection>,
   rp?: import('mongodb').ReadPreference,
@@ -71,7 +73,9 @@ async function probeNode(
     const me = (hello.me as string | undefined) ?? '';
     const shard = me.match(/shard-\d{2}-\d{2}/)?.[0] ?? me.split(':')[0]?.split('.')[0] ?? '?';
     const role = (hello.isWritablePrimary === true || hello.ismaster === true) ? 'P' : 'S';
-    return ` id=${shard}[${role}]`;
+    const region = nodeRegionMap.get(shard);
+    const providerTag = region ? `${region.provider}·` : '';
+    return ` id=${shard}[${providerTag}${role}]`;
   } catch {
     return '';
   }
@@ -354,6 +358,15 @@ export function getWorkloadStatus() {
 export async function startWorkload(type: WorkloadType, cfg: WorkloadConfig): Promise<string> {
   if (abortController) {
     throw new Error('A workload is already running. Stop it first.');
+  }
+
+  // Build shard→region map once per workload run. Fails silently — probeNode
+  // will just omit the provider tag rather than crashing the workload.
+  try {
+    const [processes, clusterInfo] = await Promise.all([getProcesses(), getCluster()]);
+    nodeRegionMap = buildNodeRegionMap(processes, clusterInfo);
+  } catch {
+    nodeRegionMap = new Map();
   }
 
   abortController = new AbortController();
