@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, FileText } from 'lucide-react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, FileText, Settings } from 'lucide-react';
 import { useSSE } from './hooks/useSSE';
 import { useAtlas } from './hooks/useAtlas';
 import { useEventRecorder } from './hooks/useEventRecorder';
@@ -13,6 +13,7 @@ import ConnectionBadge from './components/ConnectionBadge';
 import ProviderBadge from './components/ProviderBadge';
 import FailoverExplainer from './components/FailoverExplainer';
 import HAReportModal from './components/HAReportModal';
+import SettingsModal, { restoreConnectionOverride } from './components/SettingsModal';
 
 type ToastType = 'success' | 'error' | 'info';
 interface Toast { message: string; type: ToastType; }
@@ -37,6 +38,10 @@ export default function App() {
   const [leftOpen,         setLeftOpen]         = useState(true);
   const [rightOpen,        setRightOpen]        = useState(true);
   const [reportOpen,       setReportOpen]       = useState(false);
+  const [settingsOpen,     setSettingsOpen]     = useState(false);
+
+  // Re-apply any saved connection override from localStorage on startup
+  useEffect(() => { restoreConnectionOverride(); }, []);
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     setToast({ message, type });
@@ -139,6 +144,13 @@ export default function App() {
             />
           )}
           <ConnectionBadge connected={connected} connectionStatus={metrics?.connectionStatus} />
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title="Connection settings"
+            className="p-1.5 rounded-lg text-gray-600 hover:text-gray-200 hover:bg-white/[0.06] border border-transparent hover:border-white/[0.08] transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.92]"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
         </div>
       </header>
 
@@ -275,6 +287,11 @@ export default function App() {
           record={record}
           onClose={() => { setReportOpen(false); dismissReport(); }}
         />
+      )}
+
+      {/* ── Settings Modal ── */}
+      {settingsOpen && (
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   );

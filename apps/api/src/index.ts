@@ -11,6 +11,7 @@ import workloadsRouter from './routes/workloads';
 import demoRouter from './routes/demo';
 import metricsRouter from './routes/metrics';
 import eventsRouter from './routes/events';
+import settingsRouter from './routes/settings';
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/workloads', workloadsRouter);
 app.use('/api/demo', demoRouter);
 app.use('/api/metrics', metricsRouter);
 app.use('/api/events', eventsRouter);
+app.use('/api/settings', settingsRouter);
 
 app.use(errorHandler);
 

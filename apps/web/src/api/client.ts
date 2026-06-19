@@ -76,4 +76,17 @@ export const api = {
 
   resetDemo: () =>
     request<{ deleted: number }>('POST', '/demo/reset'),
+
+  // Connection settings
+  settingsGetConnection: () =>
+    request<{ isOverride: boolean; clusterName: string; uriHost: string }>('GET', '/settings/connection'),
+
+  settingsTestConnection: (mongoUri: string) =>
+    request<{ uriHost: string }>('POST', '/settings/connection/test', { mongoUri }),
+
+  settingsApplyConnection: (mongoUri: string, clusterName: string) =>
+    request<{ uriHost: string; clusterName: string }>('POST', '/settings/connection', { mongoUri, clusterName }),
+
+  settingsResetConnection: () =>
+    request<null>('DELETE', '/settings/connection'),
 };

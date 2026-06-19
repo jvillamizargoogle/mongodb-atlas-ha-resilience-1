@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { config } from '../config';
+import { getLiveClusterName } from '../db/liveConfig';
 
 // 2024-08-05 is the minimum version that returns the advanced cluster description
 // format, which is required for multi-cloud / multi-region clusters.
@@ -117,7 +118,8 @@ async function atlasRequest<T>(method: string, path: string, body?: unknown): Pr
 // ── Public API functions ────────────────────────────────────────────────────
 
 export async function getCluster(): Promise<Record<string, unknown>> {
-  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
+  const projectId = config.ATLAS_PROJECT_ID;
+  const clusterName = getLiveClusterName();
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
@@ -132,7 +134,8 @@ export async function triggerFailover(confirmed: boolean): Promise<void> {
   if (!config.ENABLE_DESTRUCTIVE_ACTIONS) {
     throw new Error('Destructive actions are disabled. Set ENABLE_DESTRUCTIVE_ACTIONS=true to enable failover.');
   }
-  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
+  const projectId = config.ATLAS_PROJECT_ID;
+  const clusterName = getLiveClusterName();
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
@@ -148,7 +151,8 @@ export async function startOutage(
   if (!config.ENABLE_DESTRUCTIVE_ACTIONS) {
     throw new Error('Destructive actions are disabled. Set ENABLE_DESTRUCTIVE_ACTIONS=true to enable outage simulation.');
   }
-  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
+  const projectId = config.ATLAS_PROJECT_ID;
+  const clusterName = getLiveClusterName();
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
@@ -162,7 +166,8 @@ export async function startOutage(
 }
 
 export async function endOutage(): Promise<Record<string, unknown>> {
-  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
+  const projectId = config.ATLAS_PROJECT_ID;
+  const clusterName = getLiveClusterName();
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
@@ -173,7 +178,8 @@ export async function endOutage(): Promise<Record<string, unknown>> {
 }
 
 export async function getOutageStatus(): Promise<Record<string, unknown>> {
-  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
+  const projectId = config.ATLAS_PROJECT_ID;
+  const clusterName = getLiveClusterName();
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
@@ -194,7 +200,8 @@ export interface AtlasProcess {
 }
 
 export async function resumeCluster(): Promise<Record<string, unknown>> {
-  const { ATLAS_PROJECT_ID: projectId, ATLAS_CLUSTER_NAME: clusterName } = config;
+  const projectId = config.ATLAS_PROJECT_ID;
+  const clusterName = getLiveClusterName();
   if (!projectId || !clusterName) {
     throw new Error('ATLAS_PROJECT_ID and ATLAS_CLUSTER_NAME must be configured.');
   }
@@ -263,7 +270,7 @@ export function buildNodeRegionMap(
 
 export async function getProcesses(): Promise<AtlasProcess[]> {
   const projectId = config.ATLAS_PROJECT_ID;
-  const clusterName = config.ATLAS_CLUSTER_NAME;
+  const clusterName = getLiveClusterName();
   if (!projectId) throw new Error('ATLAS_PROJECT_ID must be configured.');
   const result = await atlasRequest<{ results: AtlasProcess[] }>(
     'GET',

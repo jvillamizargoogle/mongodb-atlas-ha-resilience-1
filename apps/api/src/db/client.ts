@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb';
 import { config } from '../config';
+import { getLiveMongoUri } from './liveConfig';
 import type { ConnectionStatus } from '@atlas-demo/shared';
 
 let client: MongoClient | null = null;
@@ -33,7 +34,7 @@ export async function getClient(): Promise<MongoClient> {
   // - minPoolSize 10: pre-warmed connections for immediate demo responsiveness
   // - maxIdleTimeMS 300000: 5min keep-alive on a stable server
   // - serverSelectionTimeoutMS 10000: fail fast on topology changes during failover demo
-  client = new MongoClient(config.MONGODB_URI, {
+  client = new MongoClient(getLiveMongoUri(), {
     maxPoolSize: 50,
     minPoolSize: 10,
     maxIdleTimeMS: 300_000,
