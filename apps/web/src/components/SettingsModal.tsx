@@ -160,7 +160,7 @@ export default function SettingsModal({ onClose }: Props) {
                   <h2 className="text-sm font-semibold font-display text-white tracking-tight">
                     Connection Settings
                   </h2>
-                  <p className="text-[10px] text-gray-500 mt-0.5">
+                  <p className="text-xs text-gray-500 mt-0.5">
                     Override MongoDB URI and cluster without restarting the app
                   </p>
                 </div>
@@ -178,22 +178,22 @@ export default function SettingsModal({ onClose }: Props) {
               {/* ── Current connection card ── */}
               {info && (
                 <div className="space-y-1.5">
-                  <p className="text-[9px] font-mono font-semibold text-gray-600 uppercase tracking-[0.14em]">
+                  <p className="text-[13px] font-mono font-semibold text-gray-600 uppercase tracking-[0.14em]">
                     Active Connection
                   </p>
                   <div className="p-px rounded-xl bg-gradient-to-b from-white/[0.08] to-transparent ring-1 ring-white/[0.07]">
                     <div className="flex items-center gap-3 px-4 py-3 rounded-[calc(0.75rem-1px)] bg-white/[0.02] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                       <Database className="w-3.5 h-3.5 text-gray-600 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-mono text-white/90 truncate">{info.uriHost}</p>
+                        <p className="text-[13px] font-mono text-white/90 truncate">{info.uriHost}</p>
                         {info.clusterName && (
-                          <p className="text-[10px] text-gray-600 font-mono mt-0.5 truncate">
+                          <p className="text-xs text-gray-600 font-mono mt-0.5 truncate">
                             cluster: {info.clusterName}
                           </p>
                         )}
                       </div>
                       <span className={[
-                        'shrink-0 text-[8px] font-mono font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider',
+                        'shrink-0 text-xs font-mono font-semibold px-1.5 py-0.5 rounded border uppercase tracking-wider',
                         info.isOverride
                           ? 'text-orange-400 border-orange-500/25 bg-orange-500/[0.08]'
                           : 'text-mdb-green border-mdb-green/20 bg-mdb-green/[0.06]',
@@ -207,13 +207,13 @@ export default function SettingsModal({ onClose }: Props) {
 
               {/* ── Override inputs ── */}
               <div className="space-y-3">
-                <p className="text-[9px] font-mono font-semibold text-gray-600 uppercase tracking-[0.14em]">
+                <p className="text-[13px] font-mono font-semibold text-gray-600 uppercase tracking-[0.14em]">
                   {info?.isOverride ? 'Modify Override' : 'Set Override'}
                 </p>
 
                 {/* URI */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-gray-500 font-mono">MongoDB URI</label>
+                  <label className="text-xs text-gray-500 font-mono">MongoDB URI</label>
                   <div className="relative">
                     <input
                       type={showUri ? 'text' : 'password'}
@@ -223,7 +223,7 @@ export default function SettingsModal({ onClose }: Props) {
                       autoComplete="off"
                       spellCheck={false}
                       disabled={busy}
-                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 pr-10 text-[11px] text-gray-200 placeholder-gray-700 font-mono focus:outline-none focus:border-mdb-green/30 focus:ring-1 focus:ring-mdb-green/[0.12] transition-all duration-200 disabled:opacity-50 shadow-[inset_0_1px_0_rgba(0,0,0,0.3)]"
+                      className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 pr-10 text-[13px] text-gray-200 placeholder-gray-700 font-mono focus:outline-none focus:border-mdb-green/30 focus:ring-1 focus:ring-mdb-green/[0.12] transition-all duration-200 disabled:opacity-50 shadow-[inset_0_1px_0_rgba(0,0,0,0.3)]"
                     />
                     <button
                       type="button"
@@ -238,7 +238,7 @@ export default function SettingsModal({ onClose }: Props) {
 
                 {/* Cluster name */}
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-gray-500 font-mono">Atlas Cluster Name</label>
+                  <label className="text-xs text-gray-500 font-mono">Atlas Cluster Name</label>
                   <input
                     type="text"
                     value={clusterInput}
@@ -247,7 +247,7 @@ export default function SettingsModal({ onClose }: Props) {
                     autoComplete="off"
                     spellCheck={false}
                     disabled={busy}
-                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-[11px] text-gray-200 placeholder-gray-700 font-mono focus:outline-none focus:border-mdb-green/30 focus:ring-1 focus:ring-mdb-green/[0.12] transition-all duration-200 disabled:opacity-50 shadow-[inset_0_1px_0_rgba(0,0,0,0.3)]"
+                    className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-[13px] text-gray-200 placeholder-gray-700 font-mono focus:outline-none focus:border-mdb-green/30 focus:ring-1 focus:ring-mdb-green/[0.12] transition-all duration-200 disabled:opacity-50 shadow-[inset_0_1px_0_rgba(0,0,0,0.3)]"
                   />
                 </div>
               </div>
@@ -255,7 +255,7 @@ export default function SettingsModal({ onClose }: Props) {
               {/* ── Info note ── */}
               <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-yellow-500/[0.05] border border-yellow-500/[0.12]">
                 <AlertTriangle className="w-3.5 h-3.5 text-yellow-500/60 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-yellow-600/70 leading-snug">
+                <p className="text-xs text-yellow-600/70 leading-snug">
                   Applying will stop any running workload and reconnect the driver.
                   The override persists in the browser but is cleared on API restart.
                 </p>
@@ -272,7 +272,7 @@ export default function SettingsModal({ onClose }: Props) {
                   {fb.ok
                     ? <CheckCircle2 className="w-3.5 h-3.5 text-mdb-green shrink-0 mt-0.5" />
                     : <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />}
-                  <p className={`text-[11px] font-mono leading-snug ${fb.ok ? 'text-mdb-green/90' : 'text-red-400/90'}`}>
+                  <p className={`text-[13px] font-mono leading-snug ${fb.ok ? 'text-mdb-green/90' : 'text-red-400/90'}`}>
                     {fb.msg}
                   </p>
                 </div>
