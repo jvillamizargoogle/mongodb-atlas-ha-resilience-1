@@ -7,17 +7,15 @@ import {
   RotateCcw,
   Globe,
   ShieldOff,
-  Pencil,
   PenLine,
   BookOpen,
   Layers,
   FileEdit,
   Database,
   ArrowRightLeft,
-  ChevronDown,
-  X,
 } from 'lucide-react';
 import { api } from '../api/client';
+import OutageRegionModal from './OutageRegionModal';
 import type { PublicConfig, WorkloadType } from '@atlas-demo/shared';
 
 interface Props {
@@ -31,15 +29,13 @@ interface Props {
   workloadType?:        WorkloadType | null;
   clusterState?:        string | null;
   clusterPaused?:       boolean;
-  outageRegions?:       Array<{ provider: string; region: string; priority: number }>;
-  defaultOutageProvider?: string;
-  defaultOutageRegion?:   string;
+  outageRegions?:       Array<{ provider: string; region: string; priority: number; nodeCount: number }>;
   // Read preference lifted to App so FailoverExplainer can read it too
   readPref:             'primary' | 'secondaryPreferred';
   onReadPrefChange:     (p: 'primary' | 'secondaryPreferred') => void;
 }
 
-type ConfirmAction = 'failover' | 'outage_start' | 'outage_end' | 'reset';
+type ConfirmAction = 'failover' | 'outage_end' | 'reset';
 
 // ── Workload type metadata ─────────────────────────────────────────────────────
 
@@ -98,20 +94,14 @@ export default function ScenarioLauncher({
   clusterState,
   clusterPaused = false,
   outageRegions,
-  defaultOutageProvider,
-  defaultOutageRegion,
   readPref,
   onReadPrefChange,
 }: Props) {
-  const [loading,        setLoading]        = useState(false);
-  const [confirmAction,  setConfirmAction]  = useState<ConfirmAction | null>(null);
-  const [outageProvider, setOutageProvider] = useState(defaultOutageProvider ?? 'AWS');
-  const [outageRegion,   setOutageRegion]   = useState(defaultOutageRegion ?? 'US_EAST_1');
-  const [editingTarget,  setEditingTarget]  = useState(false);
-  const [providerTouched, setProviderTouched] = useState(false);
-  const [regionTouched,   setRegionTouched]   = useState(false);
+  const [loading,         setLoading]         = useState(false);
+  const [confirmAction,   setConfirmAction]   = useState<ConfirmAction | null>(null);
+  const [showOutageModal, setShowOutageModal] = useState(false);
   // Optimistic "stopped" flag — SSE metrics may lag behind after stop API call
-  const [localStopped,   setLocalStopped]   = useState(false);
+  const [localStopped,    setLocalStopped]    = useState(false);
   // Outage simulation status polled from Atlas Admin API
   const [outageSimStatus, setOutageSimStatus] = useState<string | null>(null);
   const outagePollerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -121,19 +111,6 @@ export default function ScenarioLauncher({
     if (!isRunning) setLocalStopped(false);
   }, [isRunning]);
 
-  // Sync outage target from props when user hasn't manually overridden.
-  // Prefer the highest-priority region from the full region list; fall back to the
-  // single default values for single-region clusters.
-  useEffect(() => {
-    if (providerTouched || regionTouched) return;
-    if (outageRegions && outageRegions.length > 0) {
-      setOutageProvider(outageRegions[0].provider);
-      setOutageRegion(outageRegions[0].region);
-    } else if (defaultOutageProvider) {
-      setOutageProvider(defaultOutageProvider);
-      if (defaultOutageRegion) setOutageRegion(defaultOutageRegion);
-    }
-  }, [outageRegions, defaultOutageProvider, defaultOutageRegion, providerTouched, regionTouched]);
 
   const effectivelyRunning = isRunning && !localStopped;
 
@@ -177,7 +154,6 @@ export default function ScenarioLauncher({
   const atlasEnabled     = config?.atlasControlPlaneEnabled ?? false;
   const destructiveEnabled = config?.destructiveActionsEnabled ?? false;
   const clusterBusy      = !!clusterState && clusterState !== 'IDLE';
-  const hasAtlasTarget   = !!defaultOutageProvider;
 
   // On mount (or when atlas becomes enabled), check for an existing simulation so a
   // page refresh during an active outage still shows the status chip and polls.
@@ -242,13 +218,14 @@ export default function ScenarioLauncher({
     } finally { setLoading(false); }
   }
 
-  async function startOutage() {
-    setLoading(true); setConfirmAction(null);
-    onEventStart?.('outage', `${outageProvider} Outage Simulation`, currentPrimary);
+  async function startOutage(provider: string, region: string) {
+    setShowOutageModal(false);
+    setLoading(true);
+    onEventStart?.('outage', `${provider} Outage Simulation`, currentPrimary);
     try {
-      const res = await api.startOutage(true, outageProvider, outageRegion);
+      const res = await api.startOutage(true, provider, region);
       if (res.success) {
-        onToast(`Outage started: ${outageProvider}/${outageRegion}`, 'success');
+        onToast(`Outage started: ${provider}/${region}`, 'success');
         setOutageSimStatus('START_REQUESTED');
         startOutagePoller();
       } else {
@@ -281,10 +258,9 @@ export default function ScenarioLauncher({
   }
 
   const CONFIRM_COPY: Record<ConfirmAction, string> = {
-    failover:     'Trigger a primary failover on your Atlas cluster. The replica set will hold an election — typically 3–7 s on Atlas.',
-    outage_start: `Simulate a regional outage for ${outageProvider} / ${outageRegion}. Nodes in that region go offline until you end the simulation.`,
-    outage_end:   'End the active outage simulation and restore all affected nodes.',
-    reset:        'Delete ALL documents from the resilience_events collection. This cannot be undone.',
+    failover:   'Trigger a primary failover on your Atlas cluster. The replica set will hold an election — typically 3–7 s on Atlas.',
+    outage_end: 'End the active outage simulation and restore all affected nodes.',
+    reset:      'Delete ALL documents from the resilience_events collection. This cannot be undone.',
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -434,84 +410,11 @@ export default function ScenarioLauncher({
           </div>
         )}
 
-        {/* Outage target */}
-        {outageRegions && outageRegions.length > 0 && !editingTarget ? (
-          // Multi-region: dropdown listing all electable regions sorted by priority
-          <div className="flex items-center gap-1.5">
-            {/* Doppelrand wrapper — gradient hairline ring around the native select */}
-            <div className="relative flex-1 p-px rounded-lg bg-gradient-to-b from-white/[0.10] to-white/[0.03] ring-1 ring-white/[0.06]">
-              <select
-                value={`${outageProvider}||${outageRegion}`}
-                onChange={e => {
-                  const [p, r] = e.target.value.split('||');
-                  setOutageProvider(p);
-                  setOutageRegion(r);
-                }}
-                className="w-full appearance-none bg-[#0c0c10] rounded-[calc(0.5rem-1px)] pl-2.5 pr-7 py-1.5 text-[10px] text-gray-300 font-mono focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-              >
-                {outageRegions.map(r => (
-                  <option key={`${r.provider}||${r.region}`} value={`${r.provider}||${r.region}`}>
-                    {r.provider} / {r.region}{r.priority === 7 ? '  ★' : ''}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600 pointer-events-none" />
-            </div>
-            <button
-              className="shrink-0 p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/[0.06] transition-all duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.92]"
-              onClick={() => setEditingTarget(true)}
-              title="Enter custom outage target"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
-          </div>
-        ) : hasAtlasTarget && !editingTarget ? (
-          // Single-region: read-only display with edit override
-          <div className="flex items-center gap-1.5">
-            <div className="flex-1 flex items-center gap-1.5 bg-white/[0.03] border border-white/[0.06] rounded-lg px-2.5 py-1.5">
-              <span className="text-[10px] font-mono text-gray-400">{outageProvider}</span>
-              <span className="text-gray-700 text-xs">/</span>
-              <span className="text-[10px] font-mono text-gray-400">{outageRegion}</span>
-            </div>
-            <button
-              className="shrink-0 p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/[0.05] transition-colors duration-150"
-              onClick={() => setEditingTarget(true)}
-              title="Override outage target"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
-          </div>
-        ) : (
-          // Manual text inputs (no Atlas data, or user clicked override)
-          <div className="flex gap-1">
-            <input
-              className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-[10px] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-mdb-green/40 font-mono transition-colors duration-150"
-              placeholder="Provider"
-              value={outageProvider}
-              onChange={e => { setProviderTouched(true); setOutageProvider(e.target.value); }}
-            />
-            <input
-              className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.08] rounded-lg px-2 py-1.5 text-[10px] text-gray-300 placeholder-gray-600 focus:outline-none focus:border-mdb-green/40 font-mono transition-colors duration-150"
-              placeholder="Region"
-              value={outageRegion}
-              onChange={e => { setRegionTouched(true); setOutageRegion(e.target.value); }}
-            />
-            {outageRegions && outageRegions.length > 0 && (
-              <button
-                className="shrink-0 p-1.5 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/[0.05] transition-colors duration-150"
-                onClick={() => { setEditingTarget(false); setProviderTouched(false); setRegionTouched(false); }}
-                title="Back to region list"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        )}
 
         <button
           className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-medium ${SPRING} disabled:opacity-30 disabled:cursor-not-allowed bg-red-500/[0.08] border-red-500/20 text-red-400 hover:bg-red-500/[0.14] hover:border-red-500/45 hover:-translate-y-px`}
-          disabled={!atlasEnabled || !destructiveEnabled || loading || !!outageSimStatus}
-          onClick={() => setConfirmAction('outage_start')}
+          disabled={!atlasEnabled || !destructiveEnabled || loading || !!outageSimStatus || !outageRegions?.length}
+          onClick={() => setShowOutageModal(true)}
         >
           <ShieldOff className="w-3.5 h-3.5 shrink-0" /> Start Outage Simulation
         </button>
@@ -575,6 +478,14 @@ export default function ScenarioLauncher({
         </button>
       </div>
 
+      {showOutageModal && !!outageRegions?.length && (
+        <OutageRegionModal
+          regions={outageRegions}
+          onConfirm={(provider, region) => startOutage(provider, region)}
+          onClose={() => setShowOutageModal(false)}
+        />
+      )}
+
       {/* ── Confirm modal — rendered via portal so fixed inset-0 covers the full viewport
            even when this component is inside an overflow-y-auto sidebar ── */}
       {confirmAction && createPortal(
@@ -596,10 +507,9 @@ export default function ScenarioLauncher({
                 <button
                   className={`px-4 py-1.5 text-xs rounded-lg font-medium ${SPRING} bg-red-500/[0.15] text-red-300 border border-red-500/30 hover:bg-red-500/[0.25] hover:border-red-500/50`}
                   onClick={() => {
-                    if (confirmAction === 'failover')          triggerFailover();
-                    else if (confirmAction === 'outage_start') startOutage();
-                    else if (confirmAction === 'outage_end')   endOutage();
-                    else if (confirmAction === 'reset')        resetDemo();
+                    if (confirmAction === 'failover')        triggerFailover();
+                    else if (confirmAction === 'outage_end') endOutage();
+                    else if (confirmAction === 'reset')      resetDemo();
                   }}
                 >
                   Confirm

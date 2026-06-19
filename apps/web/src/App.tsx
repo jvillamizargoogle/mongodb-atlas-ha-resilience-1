@@ -62,10 +62,10 @@ export default function App() {
   const clusterPaused   = clusterInfo?.paused === true;
 
   // All electable regions from replicationSpecs, sorted by priority desc (priority 7 = preferred primary).
-  const outageRegions = useMemo((): Array<{provider: string; region: string; priority: number}> => {
+  const outageRegions = useMemo((): Array<{provider: string; region: string; priority: number; nodeCount: number}> => {
     const specs = clusterInfo?.replicationSpecs as Array<Record<string, unknown>> | undefined;
     if (!specs) return [];
-    const regions: Array<{provider: string; region: string; priority: number}> = [];
+    const regions: Array<{provider: string; region: string; priority: number; nodeCount: number}> = [];
     for (const spec of specs) {
       const rcs = spec.regionConfigs as Array<Record<string, unknown>> | undefined;
       if (!rcs) continue;
@@ -73,9 +73,10 @@ export default function App() {
         const electable = rc.electableSpecs as Record<string, unknown> | undefined;
         if (!((electable?.nodeCount as number) > 0)) continue;
         regions.push({
-          provider: (rc.providerName as string) ?? '',
-          region:   (rc.regionName  as string) ?? '',
-          priority: (rc.priority    as number) ?? 0,
+          provider:  (rc.providerName      as string) ?? '',
+          region:    (rc.regionName        as string) ?? '',
+          priority:  (rc.priority          as number) ?? 0,
+          nodeCount: (electable?.nodeCount as number) ?? 0,
         });
       }
     }
@@ -189,8 +190,6 @@ export default function App() {
                   clusterState={clusterInfo?.stateName as string | null | undefined}
                   clusterPaused={clusterPaused}
                   outageRegions={outageRegions}
-                  defaultOutageProvider={rawAtlasProvider ?? undefined}
-                  defaultOutageRegion={rawAtlasRegion ?? undefined}
                   readPref={readPref}
                   onReadPrefChange={setReadPref}
                 />
