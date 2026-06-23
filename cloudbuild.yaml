@@ -1,0 +1,24 @@
+steps:
+  # Build API image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/api:latest'
+      - '-f'
+      - 'docker/Dockerfile.api'
+      - '.'
+
+  # Build Web image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/web:latest'
+      - '-f'
+      - 'docker/Dockerfile.web'
+      - '.'
+
+images:
+  - 'europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/api:latest'
+  - 'europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/web:latest'
