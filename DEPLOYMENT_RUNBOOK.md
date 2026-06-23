@@ -240,6 +240,8 @@ docker build -f docker/Dockerfile.api -t europe-southwest1-docker.pkg.dev/test-m
 docker build -f docker/Dockerfile.web -t europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/web:latest .
 
 # 5. Token Authentication & Push
+# NOTE: If 'docker push' fails with MutualTLSChannelError (ECP Offload SSL context error),
+# temporarily remove `"europe-southwest1-docker.pkg.dev": "gcloud"` from 'credHelpers' in ~/.docker/config.json.
 gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://europe-southwest1-docker.pkg.dev
 docker push europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/api:latest
 docker push europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/web:latest

@@ -268,7 +268,7 @@ atlas-ha-demo/
 ├── docker/
 │   ├── Dockerfile.api
 │   ├── Dockerfile.web
-│   └── nginx.conf
+│   └── nginx.conf.template
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
