@@ -193,6 +193,28 @@ gcloud run deploy resilience-demo-web \
 
 ---
 
+## Accessing Secure (Private) Cloud Run Services
+
+Since organizational policies in this Google Cloud project prevent making Cloud Run services publicly accessible (`allUsers`), the services require authentication. You can access the secure frontend easily using the **Google Cloud Run Local Proxy**:
+
+### 1. Run the local gcloud proxy:
+This starts a local development server on your machine, using your active `gcloud` credentials to dynamically authenticate and forward all requests securely to the Cloud Run frontend:
+```bash
+CLOUDSDK_CONTEXT_AWARE_CERTIFICATE_CONFIG_FILE_PATH="/usr/local/google/home/jvillamizar/.config/gcloud/user_certificate_config.json" \
+gcloud beta run services proxy resilience-demo-web \
+    --region=europe-southwest1 \
+    --port=8080 \
+    --project=test-mongodb-500214
+```
+
+### 2. Open the app in your browser:
+Once the proxy is running, navigate to:
+👉 **[http://localhost:8080](http://localhost:8080)**
+
+Your local browser session will load the dashboard, and Nginx inside Cloud Run will automatically proxy all `/api` requests to the secure backend.
+
+---
+
 ## Replication Command Cheatsheet
 
 For easy replication, run this sequence of commands:
