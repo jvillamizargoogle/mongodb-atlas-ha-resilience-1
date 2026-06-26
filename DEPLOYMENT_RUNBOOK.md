@@ -68,7 +68,7 @@ To link the GCP VPC network securely to MongoDB Atlas in the same region (`europ
        --subnet=default \
        --project=test-mongodb-500214
    ```
-   *Resulting IP:* `10.204.0.2`
+   *Resulting IP:* `10.204.0.2` (This IP acts as a secure, local "alias" for the MongoDB Atlas cluster inside your private VPC network, completely bypassing the public internet).
 
 3. **Create the Forwarding Rule**:
    Connects the reserved private IP to the Atlas Service Attachment:
