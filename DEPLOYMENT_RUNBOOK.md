@@ -218,6 +218,50 @@ Your local browser session will load the dashboard, and Nginx inside Cloud Run w
 
 ---
 
+## Security Architecture: Reverse Proxy Pattern & Microservice Isolation
+
+This full-stack deployment implements a standard cloud-native **Reverse Proxy Pattern** to decouple the backend API from direct exposure to public network clients:
+
+```
+[User's Browser (Any IP)]
+           │
+           ▼ (Requests to: https://resilience-demo-web-...)
+    [Nginx Web Service]  <-- Single Gatekeeper
+           │
+           ▼ (Proxies /api requests internally to: https://resilience-demo-api-...)
+    [Node.js API Service]
+```
+
+### Why the API Never Sees the User's IP
+1. **Single Entrypoint:** Users load the React SPA in their browser. All API calls are mapped to the relative path `/api/...` (e.g. `http://localhost:8080/api/...`).
+2. **Nginx Delegation:** The Nginx web container receives these requests and acts as a reverse proxy, forwarding them internally to `https://resilience-demo-api-43717433608.europe-southwest1.run.app`.
+3. **Implicit Protection:** To the API service, the caller is **always the Nginx container**, never the end-user. This makes the API backend IP-opaque to outside networks.
+
+### Next-Step Production Hardening Strategies
+If you want to restrict access to the API service *strictly* to the frontend Nginx service, you can implement either of these two security patterns:
+
+#### Strategy A: Internal VPC Ingress (Network Shield)
+* **Mechanism:** Block all public traffic to the API and only accept private VPC traffic.
+* **Execution:**
+  1. Configure the API's ingress settings to **Internal Only**:
+     ```bash
+     gcloud run services update resilience-demo-api --ingress=internal --project=test-mongodb-500214
+     ```
+  2. Direct all traffic to the API URL (`https://resilience-demo-api-...`) will result in a `403 Forbidden` from the internet.
+  3. Enable Direct VPC egress on the Nginx frontend (`resilience-demo-web`). Nginx will then route all proxied `/api` requests privately through the VPC default subnet, allowing successful connections while completely hiding the API from the public web.
+
+#### Strategy B: IAM Service-to-Service Authentication (Identity Shield)
+* **Mechanism:** Restrict API invoker permissions strictly to the Web service account.
+* **Execution:**
+  1. Remove public unauthenticated access from the API service:
+     ```bash
+     gcloud run services remove-iam-policy-binding resilience-demo-api --member="allUsers" --role="roles/run.invoker" --region=europe-southwest1 --project=test-mongodb-500214
+     ```
+  2. Assign the **Cloud Run Invoker** role to the Nginx service account.
+  3. Configure Nginx to automatically generate and attach a signed Google OIDC token (`Authorization: Bearer <token>`) when forwarding proxy calls to the API backend.
+
+---
+
 ## Replication Command Cheatsheet
 
 For easy replication, run this sequence of commands:
