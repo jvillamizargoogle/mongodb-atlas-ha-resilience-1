@@ -194,14 +194,31 @@ gcloud run deploy resilience-demo-web \
 ```
 *   **Frontend Dashboard URL:** [https://resilience-demo-web-43717433608.europe-southwest1.run.app](https://resilience-demo-web-43717433608.europe-southwest1.run.app)
 
+## Public Access and Organization Policy Overrides
+
+Initially, organizational policies in this Google Cloud project restricted Cloud Run services from being publicly accessible (`allUsers`), requiring developer-local authentication via a secure `gcloud beta run services proxy`.
+
+### The Public Access Override
+To support zero-friction external customer workshops, the organization policy and service IAM permissions have been updated:
+1. **Organization Policy Override:** The list constraint `constraints/iam.allowedPolicyMemberDomains` has been overridden to `allowAll: true` at the project level, allowing `allUsers` IAM bindings.
+2. **Public IAM Bindings:** Both services have been granted public invoker roles:
+   ```bash
+   gcloud run services add-iam-policy-binding resilience-demo-web --member="allUsers" --role="roles/run.invoker" --region=europe-southwest1 --project=test-mongodb-500214
+   gcloud run services add-iam-policy-binding resilience-demo-api --member="allUsers" --role="roles/run.invoker" --region=europe-southwest1 --project=test-mongodb-500214
+   ```
+
+### Live Workshop Links (Zero-Friction Access)
+Attendees can now access the full dashboard and trigger High Availability demo scenarios directly in any browser with **zero local setup**:
+* 👉 **Frontend Dashboard:** [https://resilience-demo-web-43717433608.europe-southwest1.run.app](https://resilience-demo-web-43717433608.europe-southwest1.run.app)
+* 👉 **Backend API Endpoint:** [https://resilience-demo-api-43717433608.europe-southwest1.run.app](https://resilience-demo-api-43717433608.europe-southwest1.run.app)
+
 ---
 
-## Accessing Secure (Private) Cloud Run Services
+## Accessing the Services via Local Proxy (Alternative)
 
-Since organizational policies in this Google Cloud project prevent making Cloud Run services publicly accessible (`allUsers`), the services require authentication. You can access the secure frontend easily using the **Google Cloud Run Local Proxy**:
+If you ever restore the restrictive organization policies post-workshop and need to fall back to a secure tunnel, you can run:
 
 ### 1. Run the local gcloud proxy:
-This starts a local development server on your machine, using your active `gcloud` credentials to dynamically authenticate and forward all requests securely to the Cloud Run frontend:
 ```bash
 CLOUDSDK_CONTEXT_AWARE_CERTIFICATE_CONFIG_FILE_PATH="/usr/local/google/home/jvillamizar/.config/gcloud/user_certificate_config.json" \
 gcloud beta run services proxy resilience-demo-web \
@@ -211,7 +228,6 @@ gcloud beta run services proxy resilience-demo-web \
 ```
 
 ### 2. Open the app in your browser:
-Once the proxy is running, navigate to:
 👉 **[http://localhost:8080](http://localhost:8080)**
 
 Your local browser session will load the dashboard, and Nginx inside Cloud Run will automatically proxy all `/api` requests to the secure backend.
