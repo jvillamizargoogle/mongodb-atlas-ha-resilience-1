@@ -71,3 +71,10 @@ Because the MongoDB connection routes through Private Service Connect (using pri
 * **Instruction:** When deploying or updating the API service, always include the Direct VPC Egress flags:
   `--network=default --subnet=default --vpc-egress=private-ranges-only`
 
+### 5. Nginx Infinite Routing Loop and SNI on Cloud Run
+* **Problem:** In Nginx reverse proxy templates, using `proxy_set_header Host $host;` when forwarding requests to an absolute external Cloud Run URL (`https://resilience-demo-api-...`) causes an infinite routing loop. Google Frontend (GFE) routes the proxied request back to the frontend because of the incoming `Host` header, triggering a loop that eventually results in `HTTP 429 Rate exceeded`.
+* **Resolution:**
+  1. Remove `proxy_set_header Host $host;` from the location blocks. This allows Nginx to default to using the backend's domain name as the `Host` header.
+  2. Enable SNI routing explicitly by adding `proxy_ssl_server_name on;` to enable the TLS handshake with Google Frontend to succeed.
+
+
