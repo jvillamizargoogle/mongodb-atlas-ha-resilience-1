@@ -1,6 +1,8 @@
 import type { ApiResponse, WorkloadConfig, PublicConfig, MetricsSnapshot } from '@atlas-demo/shared';
 
-const BASE = '/api';
+const BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8081/api'
+  : '/api';
 
 async function request<T>(
   method: string,

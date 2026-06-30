@@ -50,6 +50,19 @@ gcloud beta run services proxy resilience-demo-web \
 ```
 Access the application locally via **http://localhost:8080**.
 
+> [!IMPORTANT]
+> Because of service-to-service authentication restrictions in Cloud Run, Nginx inside the frontend container cannot invoke the backend API directly (returning `401 Unauthorized` / `Network error`).
+> To resolve this, run a secure API proxy locally on port `8081`:
+> ```bash
+> CLOUDSDK_CONTEXT_AWARE_CERTIFICATE_CONFIG_FILE_PATH="/usr/local/google/home/jvillamizar/.config/gcloud/user_certificate_config.json" \
+> gcloud beta run services proxy resilience-demo-api \
+>     --region=europe-southwest1 \
+>     --port=8081 \
+>     --project=test-mongodb-500214
+> ```
+> The React frontend is configured to automatically route API traffic to `http://localhost:8081/api` when accessed via `localhost`, completely bypassing the Cloud Run auth block.
+
+
 ### 3. Server Startup Sequence Modularity
 The backend `apps/api/src/index.ts` is designed with an asynchronous database connection routine. When launching or modifying the API service, ensure the Express server starts listening immediately to satisfy Cloud Run's startup health checks, regardless of current MongoDB availability.
 
