@@ -40,12 +40,13 @@ async function start(): Promise<void> {
   try {
     await getClient();
     console.log('[Atlas HA Demo] MongoDB connected');
-
     await startChangeStream();
     console.log('[Atlas HA Demo] Change stream started');
   } catch (err) {
-    console.error('[Atlas HA Demo] MongoDB connection failed on startup, but server is running:', err);
-    // Do not call process.exit(1) to allow the container to stay alive and be configured via settings
+    // Non-fatal: the settings endpoint remains reachable so the user can
+    // override the URI via the UI without restarting the server.
+    console.warn('[Atlas HA Demo] Initial MongoDB connection failed — use the settings UI to set a working URI.');
+    console.warn(err);
   }
 }
 
