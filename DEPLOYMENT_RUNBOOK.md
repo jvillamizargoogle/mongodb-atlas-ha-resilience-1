@@ -172,7 +172,8 @@ gcloud run deploy resilience-demo-api \
     --region europe-southwest1 \
     --platform managed \
     --allow-unauthenticated \
-    --set-env-vars="MONGODB_URI=mongodb+srv://<DB_USER>:<DB_PASSWORD>@hackathon-gcp-psc-0.vwquwo.mongodb.net/?appName=Hackathon-GCP,APP_REGION=europe-southwest1,APP_CLOUD_PROVIDER=gcp" \
+    --set-env-vars="APP_REGION=europe-southwest1,APP_CLOUD_PROVIDER=gcp" \
+    --update-secrets="MONGODB_URI=resilience-mongodb-uri:latest" \
     --network=default \
     --subnet=default \
     --vpc-egress=private-ranges-only \
@@ -315,7 +316,8 @@ gcloud run deploy resilience-demo-api \
     --image europe-southwest1-docker.pkg.dev/test-mongodb-500214/resilience-demo/api:latest \
     --region europe-southwest1 \
     --platform managed \
-    --set-env-vars="MONGODB_URI=mongodb+srv://<DB_USER>:<DB_PASSWORD>@hackathon-gcp-psc-0.vwquwo.mongodb.net/?appName=Hackathon-GCP,APP_REGION=europe-southwest1,APP_CLOUD_PROVIDER=gcp" \
+    --set-env-vars="APP_REGION=europe-southwest1,APP_CLOUD_PROVIDER=gcp" \
+    --update-secrets="MONGODB_URI=resilience-mongodb-uri:latest" \
     --network=default \
     --subnet=default \
     --vpc-egress=private-ranges-only \
